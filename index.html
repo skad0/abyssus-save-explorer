@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Abyssus Dive Log — Save File Explorer</title>
+<style>
+:root{
+  --abyss:#08181F;
+  --shelf:#0F2B36;
+  --shelf-2:#123543;
+  --contour:#1C4859;
+  --phosphor:#79CDBB;
+  --cream:#EADFC6;
+  --coral:#E4674B;
+  --brass:#DFA63A;
+  --muted:#6E93A0;
+  --mono:ui-monospace,"SF Mono","Cascadia Code","Roboto Mono",Consolas,monospace;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--abyss);
+  color:var(--cream);
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.55;
+  /* bathymetric contour ground */
+  background-image:
+    repeating-radial-gradient(circle at 18% -10%, transparent 0 58px, rgba(28,72,89,.30) 58px 59px),
+    repeating-radial-gradient(circle at 112% 120%, transparent 0 74px, rgba(28,72,89,.22) 74px 75px);
+  background-attachment:fixed;
+}
+a{color:var(--phosphor)}
+h1,h2,h3{font-family:var(--serif);font-weight:600;letter-spacing:.01em;margin:0}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px 80px}
+
+/* ---------- masthead ---------- */
+header.mast{
+  border-bottom:1px solid var(--contour);
+  padding:26px 0 18px;
+  margin-bottom:26px;
+  display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;
+}
+.mast h1{font-size:30px;line-height:1.1}
+.mast .sub{
+  font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--muted);margin-top:7px;
+}
+.slotline{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:right}
+.slotline b{color:var(--phosphor);font-weight:500}
+
+/* ---------- drop zone ---------- */
+.drop{
+  border:1px dashed var(--contour);
+  background:linear-gradient(180deg,rgba(18,53,67,.55),rgba(8,24,31,.2));
+  padding:52px 28px;text-align:center;margin:34px 0;
+}
+.drop.over{border-color:var(--phosphor);background:rgba(121,205,187,.07)}
+.drop h2{font-size:22px;margin-bottom:8px}
+.drop p{color:var(--muted);max-width:56ch;margin:8px auto;font-size:14px}
+.path{
+  font-family:var(--mono);font-size:12.5px;color:var(--phosphor);
+  background:rgba(8,24,31,.6);border:1px solid var(--contour);
+  padding:9px 13px;display:inline-block;margin-top:14px;word-break:break-all;
+}
+.btn{
+  font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;
+  background:var(--phosphor);color:#05141a;border:0;padding:11px 20px;cursor:pointer;margin-top:20px;
+}
+.btn:hover{background:#96e0d0}
+.btn.ghost{background:transparent;color:var(--phosphor);border:1px solid var(--contour)}
+.btn.ghost:hover{background:rgba(121,205,187,.1)}
+.err{border-color:var(--coral);color:var(--coral)}
+
+/* ---------- tabs ---------- */
+nav.tabs{display:flex;gap:2px;flex-wrap:wrap;border-bottom:1px solid var(--contour);margin-bottom:26px}
+nav.tabs button{
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;
+  background:transparent;border:0;border-bottom:2px solid transparent;
+  color:var(--muted);padding:12px 15px;cursor:pointer;
+}
+nav.tabs button:hover{color:var(--cream)}
+nav.tabs button[aria-selected="true"]{color:var(--phosphor);border-bottom-color:var(--phosphor)}
+
+/* ---------- panels & cards ---------- */
+.panel{display:none}
+.panel.on{display:block;animation:fade .25s ease}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.grid{display:grid;gap:14px}
+.g4{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.g2{grid-template-columns:repeat(auto-fit,minmax(330px,1fr))}
+.card{background:rgba(15,43,54,.72);border:1px solid var(--contour);padding:16px 18px}
+.card h3{font-size:15px;margin-bottom:12px;font-family:var(--sans);font-weight:600}
+.stat .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.stat .v{font-family:var(--mono);font-size:26px;color:var(--phosphor);line-height:1.25;margin-top:5px;font-variant-numeric:tabular-nums}
+.stat .v.coral{color:var(--coral)} .stat .v.brass{color:var(--brass)}
+.stat .n{font-size:12px;color:var(--muted);margin-top:3px}
+.note{
+  border-left:2px solid var(--brass);background:rgba(223,166,58,.07);
+  padding:11px 14px;font-size:13.5px;color:#d9cba8;margin:16px 0;
+}
+.note b{color:var(--brass)}
+
+/* ---------- tables ---------- */
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid rgba(28,72,89,.6)}
+th{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);cursor:pointer;user-select:none;white-space:nowrap;position:sticky;top:0;
+  background:var(--abyss);
+}
+th.no{cursor:default}
+th:hover:not(.no){color:var(--phosphor)}
+th .ar{opacity:.45;font-size:9px}
+td.num,th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+tbody tr:hover{background:rgba(28,72,89,.28)}
+.scroll{max-height:520px;overflow:auto;border:1px solid var(--contour)}
+
+/* ---------- controls ---------- */
+.ctl{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-bottom:15px}
+input[type=search],select{
+  font-family:var(--mono);font-size:12.5px;background:rgba(8,24,31,.75);
+  color:var(--cream);border:1px solid var(--contour);padding:8px 11px;
+}
+input[type=search]{min-width:210px}
+input[type=search]:focus,select:focus{outline:2px solid var(--phosphor);outline-offset:1px}
+.chip{
+  font-family:var(--mono);font-size:11px;letter-spacing:.06em;
+  background:transparent;border:1px solid var(--contour);color:var(--muted);
+  padding:6px 11px;cursor:pointer;
+}
+.chip[aria-pressed="true"]{border-color:var(--phosphor);color:var(--phosphor);background:rgba(121,205,187,.09)}
+.count{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-left:auto}
+
+/* ---------- run rows ---------- */
+.run{border:1px solid var(--contour);background:rgba(15,43,54,.6);margin-bottom:9px}
+.run > summary{
+  padding:13px 16px;cursor:pointer;list-style:none;
+  display:grid;grid-template-columns:44px 1fr auto;gap:14px;align-items:center;
+}
+.run > summary::-webkit-details-marker{display:none}
+.run > summary:hover{background:rgba(28,72,89,.3)}
+.run[open] > summary{border-bottom:1px solid var(--contour);background:rgba(28,72,89,.22)}
+.rnum{font-family:var(--serif);font-size:23px;color:var(--muted);text-align:center}
+.run[open] .rnum{color:var(--phosphor)}
+.rtitle{font-size:14.5px}
+.rtitle .w{color:var(--phosphor)}
+.rmeta{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:3px}
+.rfig{font-family:var(--mono);font-size:12.5px;text-align:right;font-variant-numeric:tabular-nums}
+.rfig .d{color:var(--phosphor)} .rfig .t{color:var(--coral)}
+.rbody{padding:18px 16px}
+.tag{
+  display:inline-block;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;
+  border:1px solid var(--contour);padding:3px 8px;margin:0 5px 5px 0;color:var(--cream);
+}
+.tag i{color:var(--brass);font-style:normal}
+.sub-h{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted);margin:0 0 9px;padding-bottom:5px;border-bottom:1px solid var(--contour);
+}
+.kv{display:flex;justify-content:space-between;gap:12px;font-size:13px;padding:4px 0}
+.kv .kk{color:var(--muted)}
+.kv .vv{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* ---------- bars ---------- */
+.bar{height:7px;background:rgba(28,72,89,.65);overflow:hidden;margin-top:5px}
+.bar > i{display:block;height:100%;background:var(--phosphor)}
+.brow{margin-bottom:11px}
+.blab{display:flex;justify-content:space-between;font-size:12.5px;gap:10px}
+.blab .bv{font-family:var(--mono);color:var(--phosphor);font-variant-numeric:tabular-nums}
+
+/* ---------- dive profile signature ---------- */
+.dive{overflow-x:auto;padding:4px 0 2px}
+.dive svg{display:block}
+.legend{display:flex;gap:13px;flex-wrap:wrap;margin-top:10px;font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+.legend span{display:flex;align-items:center;gap:5px}
+.legend i{width:8px;height:8px;display:block}
+
+.state{font-family:var(--mono);font-size:12px}
+.state.done{color:var(--phosphor)} .state.zero{color:var(--muted)}
+footer{border-top:1px solid var(--contour);margin-top:44px;padding-top:18px;font-size:12.5px;color:var(--muted)}
+.hide{display:none!important}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="mast">
+  <div>
+    <h1>Abyssus Dive Log</h1>
+    <div class="sub">Save file explorer &middot; reads Profile<span id="slotN"></span>.sav locally</div>
+  </div>
+  <div class="slotline" id="slotline"></div>
+</header>
+
+<!-- ================= LOADER ================= -->
+<section id="loader">
+  <div class="drop" id="drop">
+    <h2>Drop your save file here</h2>
+    <p>Everything runs inside this page. Your file is read in the browser and never uploaded anywhere.</p>
+    <p style="margin-top:16px">Find it at:</p>
+    <div class="path">%LOCALAPPDATA%\Abyssus\Saved\SaveGames\Profile1.sav</div>
+    <p style="margin-top:14px;font-size:13px">Close Abyssus first so the file isn't mid-write. Copy it somewhere safe rather than dragging the original, if you'd rather not touch the live save.</p>
+    <br>
+    <button class="btn" id="pick">Choose file</button>
+    <input type="file" id="file" accept=".sav" hidden>
+  </div>
+  <div id="loadErr"></div>
+</section>
+
+<!-- ================= APP ================= -->
+<section id="app" class="hide">
+  <nav class="tabs" id="tabs"></nav>
+  <div id="panels"></div>
+  <footer>
+    Read from the save file's own fields. Abyssus stores far more per run than its stats screen shows &mdash;
+    accuracy, weakspot rate, damage by source, the node path you took, and every mutator rank.
+    <button class="btn ghost" id="reset" style="margin-top:14px">Load a different file</button>
+  </footer>
+</section>
+
+</div>
+<script>
+"use strict";
+/* ============================================================
+   PART 1 — GVAS (Unreal Engine SaveGame) reader
+   Ported from a byte-level read of Abyssus' UE 5.6 save format.
+   ============================================================ */
+const ATOMIC = new Set(["Guid","DateTime","Timespan","Vector","Vector2D","Vector4","Rotator",
+  "Quat","Color","LinearColor","IntPoint","IntVector","UniqueNetIdRepl"]);
+const UTF8 = new TextDecoder("utf-8");
+
+class Reader{
+  constructor(buf){ this.d=new DataView(buf); this.u8=new Uint8Array(buf); this.p=0; this.len=buf.byteLength; }
+  need(n){ if(this.p+n>this.len) throw new Error("unexpected end of file at byte "+this.p); }
+  i8(){ this.need(1); return this.d.getInt8(this.p++); }
+  u8v(){ this.need(1); return this.d.getUint8(this.p++); }
+  i16(){ this.need(2); const v=this.d.getInt16(this.p,true); this.p+=2; return v; }
+  u16(){ this.need(2); const v=this.d.getUint16(this.p,true); this.p+=2; return v; }
+  i32(){ this.need(4); const v=this.d.getInt32(this.p,true); this.p+=4; return v; }
+  u32(){ this.need(4); const v=this.d.getUint32(this.p,true); this.p+=4; return v; }
+  i64(){ this.need(8); const v=this.d.getBigInt64(this.p,true); this.p+=8; return v; }
+  f32(){ this.need(4); const v=this.d.getFloat32(this.p,true); this.p+=4; return v; }
+  f64(){ this.need(8); const v=this.d.getFloat64(this.p,true); this.p+=8; return v; }
+  guid(){ this.need(16); this.p+=16; }
+  str(){
+    const n=this.i32();
+    if(n===0) return "";
+    if(n>0){
+      this.need(n);
+      let end=n; if(end>0&&this.u8[this.p+end-1]===0) end--;
+      const s=UTF8.decode(this.u8.subarray(this.p,this.p+end));
+      this.p+=n; return s;
+    }
+    const cnt=-n; this.need(cnt*2); let s="";
+    for(let i=0;i<cnt;i++){const c=this.d.getUint16(this.p+i*2,true); if(c===0&&i===cnt-1)break; s+=String.fromCharCode(c);}
+    this.p+=cnt*2; return s;
+  }
+  /* type references are written as: int32 flag + FString */
+  typeName(){ this.i32(); return this.str(); }
+}
+
+function readAtomic(r,name,size){
+  const start=r.p; let v=null;
+  try{
+    if(name==="Guid"){ r.guid(); v=null; }
+    else if(name==="DateTime"||name==="Timespan"){ v=r.i64(); }
+    else if(name==="UniqueNetIdRepl"){ r.i32(); const sys=r.str(); const id=r.str(); v={subsystem:sys,id:id}; }
+    else if(name==="Vector"||name==="Rotator"){ v=[r.f64(),r.f64(),r.f64()]; }
+    else if(name==="Vector2D"){ v=[r.f64(),r.f64()]; }
+    else if(name==="LinearColor"){ v=[r.f32(),r.f32(),r.f32(),r.f32()]; }
+    else if(name==="IntPoint"){ v=[r.i32(),r.i32()]; }
+    else if(name==="IntVector"){ v=[r.i32(),r.i32(),r.i32()]; }
+  }catch(e){ v=null; }
+  r.p=start+size; return v;
+}
+
+function readPrim(r,type){
+  switch(type){
+    case "IntProperty": return r.i32();
+    case "Int8Property": return r.i8();
+    case "Int16Property": return r.i16();
+    case "Int64Property": return Number(r.i64());
+    case "UInt16Property": return r.u16();
+    case "UInt32Property": return r.u32();
+    case "FloatProperty": return r.f32();
+    case "DoubleProperty": return r.f64();
+    case "BoolProperty": return r.u8v()!==0;
+    case "StrProperty": case "NameProperty": case "ObjectProperty": case "EnumProperty": return r.str();
+    case "SoftObjectProperty": { const a=r.str(); r.str(); return a; }
+    case "ByteProperty": return r.u8v();
+    default: return null;
+  }
+}
+
+function readArray(r,inner,end,elemStruct){
+  const count=r.i32();
+  if(count<0||count>200000) throw new Error("implausible array count "+count);
+  const items=[];
+  if(inner==="StructProperty"){
+    for(let i=0;i<count&&r.p<end;i++) items.push(readProps(r,end));
+  }else if(inner==="SoftObjectProperty"){
+    for(let i=0;i<count&&r.p<end;i++){ items.push(r.str()); r.str(); }
+  }else{
+    for(let i=0;i<count&&r.p<end;i++) items.push(readPrim(r,inner));
+  }
+  r.p=end; return items;
+}
+
+function readMapSide(r,type,end){
+  if(type==="StructProperty") return readProps(r,end);
+  return readPrim(r,type);
+}
+
+function readMap(r,kt,vt,end){
+  const rm=r.i32();
+  if(rm<0||rm>200000) throw new Error("implausible map header");
+  for(let i=0;i<rm;i++) readMapSide(r,kt,end);
+  const n=r.i32();
+  if(n<0||n>200000) throw new Error("implausible map size");
+  const pairs=[];
+  for(let i=0;i<n&&r.p<end;i++){
+    try{ const k=readMapSide(r,kt,end); const v=readMapSide(r,vt,end); pairs.push([k,v]); }
+    catch(e){ break; }
+  }
+  r.p=end; return pairs;
+}
+
+function readProps(r,end){
+  const out={}; let guard=0;
+  for(;;){
+    if(++guard>50000) throw new Error("desync while reading properties");
+    if(end!=null && r.p>=end) break;
+    let name; try{ name=r.str(); }catch(e){ break; }
+    if(name===""||name==="None") break;
+    const type=r.str();
+    let val, size, structName=null;
+
+    if(type==="StructProperty"){
+      structName=r.typeName(); r.typeName();
+      r.i32(); size=r.i32();
+      if(r.u8v()===1) r.guid();
+      const vend=r.p+size;
+      try{ val = ATOMIC.has(structName) ? readAtomic(r,structName,size) : readProps(r,vend); }
+      catch(e){ val=null; }
+      r.p=vend;
+      out[name]=val; continue;
+    }
+
+    let inner=null,kt=null,vt=null,elemStruct=null,boolVal=null;
+    if(type==="BoolProperty"){ boolVal=r.u8v()!==0; }
+    else if(type==="ByteProperty"||type==="EnumProperty"){ r.typeName(); }
+    else if(type==="ArrayProperty"||type==="SetProperty"){
+      inner=r.typeName();
+      if(inner==="StructProperty"){ elemStruct=r.typeName(); r.typeName(); }
+    }
+    else if(type==="MapProperty"){
+      kt=r.typeName(); if(kt==="StructProperty"){ r.typeName(); r.typeName(); }
+      vt=r.typeName(); if(vt==="StructProperty"){ r.typeName(); r.typeName(); }
+    }
+
+    r.i32(); size=r.i32();
+    if(type==="BoolProperty") size=0;      // size field is written but unused for bools
+    else if(r.u8v()===1) r.guid();
+
+    const vend=r.p+size;
+    try{
+      if(type==="BoolProperty") val=boolVal;
+      else if(type==="ArrayProperty"||type==="SetProperty") val=readArray(r,inner,vend,elemStruct);
+      else if(type==="MapProperty") val=readMap(r,kt,vt,vend);
+      else val=readPrim(r,type);
+    }catch(e){ val=null; }
+    r.p=vend;
+    out[name]=val;
+  }
+  return out;
+}
+
+function parseGVAS(buf){
+  const r=new Reader(buf);
+  const magic=String.fromCharCode(r.u8v(),r.u8v(),r.u8v(),r.u8v());
+  if(magic!=="GVAS") throw new Error("Not an Unreal save file — expected a GVAS header, got \""+magic+"\".");
+  r.i32(); r.i32(); r.i32();
+  const maj=r.u16(),min=r.u16(),pat=r.u16(); r.u32();
+  r.str(); r.i32();
+  const nCV=r.i32();
+  if(nCV<0||nCV>4000) throw new Error("save header looks corrupt");
+  for(let i=0;i<nCV;i++){ r.guid(); r.i32(); }
+  const saveClass=r.str();
+  /* some builds carry a stray alignment byte before the property list */
+  const mark=r.p, peek=r.d.getInt32(r.p,true);
+  if(!(peek>0&&peek<200)) r.p=mark+1;
+  const props=readProps(r,null);
+  return {engine:maj+"."+min+"."+pat, saveClass, props};
+}
+
+/* ============================================================
+   PART 2 — shaping the raw fields into something displayable
+   ============================================================ */
+const nf=n=>(n==null?"—":Number(n).toLocaleString());
+const nf1=n=>(n==null?"—":Number(n).toLocaleString(undefined,{maximumFractionDigits:1}));
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* "/Game/.../PA_EngineRifle_WindUp.PA_EngineRifle_WindUp" -> "Engine Rifle Wind Up" */
+function pretty(path){
+  if(!path) return null;
+  let s=String(path).split("/").pop().split(".")[0];
+  s=s.replace(/_C$/,"").replace(/^(PA_|BP_)/,"")
+     .replace(/_CharacterMutator$/,"").replace(/_Cosmetic$/,"")
+     .replace(/_Mutator$/,"").replace(/_Behavior$/,"");
+  s=s.replace(/_/g," ").replace(/([a-z0-9])([A-Z])/g,"$1 $2");
+  return s.replace(/\s+/g," ").trim();
+}
+function categoryOf(path){
+  if(!path) return "Other";
+  if(path.includes("/Weapons/")) return "Weapon";
+  if(path.includes("/WeaponMods/")) return "Weapon mod";
+  if(path.includes("/Cosmetics/")) return "Cosmetic";
+  if(path.includes("CharmMutators")) return "Charm";
+  if(path.includes("/CharacterMutators/")) return "Ability / mutator";
+  return "Other";
+}
+/* DamageSource.God.Fire -> {group:"Blessing", label:"Fire"} */
+function damageSource(tag){
+  const t=String(tag||"").replace(/^DamageSource\./,"");
+  if(t.startsWith("God.")) return {group:"Blessing",label:t.slice(4)};
+  return {group:"Direct",label:t.replace(/([a-z])([A-Z])/g,"$1 $2")};
+}
+const SRC_COLOR={
+  /* direct */
+  "Primary Fire":"#79CDBB","Secondary Fire":"#4FA8C4","Ability":"#B48AD6","Melee":"#8FA98F",
+  /* blessings */
+  "Fire":"#E4674B","Lightning":"#DFA63A","Blood":"#C4425F","Abyss":"#4E6FBF",
+  "Frost":"#7FC7E8","Wind":"#A9C9B4","Ocean":"#3E8FA8","Spirit":"#C9A6E0",
+  "Defender":"#8FB36B","Brine":"#5FB59A","Gold":"#E0C060"};
+const srcColor=l=>SRC_COLOR[l]||"#6E93A0";
+
+const NODE_COLOR={"Boss":"#E4674B","Elite Enemy":"#DFA63A","Charm":"#B48AD6","Event":"#4FA8C4",
+  "Gold":"#E0C060","Locked Chest":"#8FA98F","Merchant":"#79CDBB","Void":"#4E6FBF"};
+const nodeColor=n=>NODE_COLOR[n]||"#6E93A0";
+
+function fmtDur(sec){
+  if(sec==null) return "—";
+  const s=Math.round(sec), h=Math.floor(s/3600), m=Math.floor(s%3600/60), ss=s%60;
+  return h>0 ? h+"h "+m+"m" : m+"m "+ss+"s";
+}
+/* UE ticks (100ns since year 1) -> Date */
+function ticksToDate(t){
+  if(t==null) return null;
+  const ms=Number(BigInt(t)/10000n)-62135596800000;
+  const d=new Date(ms); return isNaN(d)?null:d;
+}
+
+function shape(parsed){
+  const P=parsed.props, S=P.SaveGameData||{};
+  const rawRuns=Array.isArray(S.RunStats)?S.RunStats:[];
+  const coop={}; (S.OtherPlayerStats||[]).forEach(([k,v])=>{
+    if(v&&Array.isArray(v.RunStats)&&v.RunStats.length) coop[k]=v.RunStats[0];
+  });
+
+  const runs=rawRuns.map((r,i)=>{
+    const hits=r.bulletsHit||0, miss=r.bulletsMissed||0, weak=r.weakspotsHit||0;
+    const nested=r.RunStats||{};
+    const brk=(r.DamageDealtBreakdown||[]).map(e=>{
+      const tag=e.DamageSourceTag&&e.DamageSourceTag.TagName;
+      const d=damageSource(tag);
+      return {tag,group:d.group,label:d.label,amount:e.DamageAmount||0};
+    }).filter(x=>x.amount>0).sort((a,b)=>b.amount-a.amount);
+    return {
+      i, idx:i+1,
+      win:!!r.RunSuccesful,
+      loop:r.LoopReached||0,
+      infinite:!!r.bInfiniteMode,
+      player:r.PlayerName||"",
+      weapon:pretty(r.WeaponUsed), weaponRaw:r.WeaponUsed||"",
+      modPrimary:pretty(r.PrimaryWeaponModAtStartOfRun),
+      modSecondary:pretty(r.SecondaryWeaponModAtStartOfRun),
+      ability:pretty(r.AbilityPrimaryAssetAtStartOfRun),
+      killedBy:pretty(r.EnemyKilledBy),
+      dealt:r.DamageDealt||0, taken:r.DamageTaken||0,
+      kills:r.EnemiesKilled||0, gold:r.GoldCollected||0, keys:r.NumKeys||0,
+      deaths:r.Deaths||0, downed:r.TimesDowned||0, revives:r.TimesRevivedOtherPlayers||0,
+      maxHP:r.MaxHPReached||0,
+      hits, miss, weak,
+      acc: (hits+miss)>0 ? hits/(hits+miss)*100 : null,
+      weakPct: hits>0 ? weak/hits*100 : null,
+      time:nested.RunTime||null, level:nested.LevelReached||null, room:nested.RoomReached||null,
+      breakdown:brk,
+      mutators:(r.MutatorsPickedUp||[]).map(m=>({name:pretty(m.MutatorPrimaryAsset),rank:m.Rank||1,raw:m.MutatorPrimaryAsset})),
+      charms:(r.EquippedCharms||[]).map(pretty),
+      nodes:(r.NodesVisited||[]).map(n=>n.NodeName).filter(Boolean),
+      challenges:(r.ChallengesCompleted||[]).map(pretty),
+      enemies:(r.EnemiesKilledOfType||[]).map(e=>({name:e.EnemyId,count:e.KillCount||0}))
+                .filter(e=>e.name&&e.name!=="None"),
+      coop:coop[i]?{
+        player:coop[i].PlayerName||"Partner",
+        dealt:coop[i].DamageDealt||0, taken:coop[i].DamageTaken||0,
+        kills:coop[i].EnemiesKilled||0, deaths:coop[i].Deaths||0,
+        weapon:pretty(coop[i].WeaponUsed)
+      }:null
+    };
+  });
+
+  const unlocked=S.UnlockedLoadoutOptions||[], discovered=S.DiscoveredLoadoutOptions||[];
+  const found=new Set(unlocked);
+  const collection=[
+    ...unlocked.map(p=>({path:p,name:pretty(p),cat:categoryOf(p),state:"Unlocked"})),
+    ...discovered.filter(p=>!found.has(p)).map(p=>({path:p,name:pretty(p),cat:categoryOf(p),state:"Seen, not unlocked"}))
+  ].sort((a,b)=>a.cat.localeCompare(b.cat)||a.name.localeCompare(b.name));
+
+  /* hidden coins: the save records which you found, not how many exist */
+  const coinsByArea={};
+  (S.HiddenCoinsFoundMap||[]).forEach(([k,v])=>{
+    if(!v) return;
+    const m=/^CoinChallenge_(.+)_(\d+)$/.exec(k); if(!m) return;
+    (coinsByArea[m[1]]=coinsByArea[m[1]]||[]).push(parseInt(m[2],10));
+  });
+  Object.values(coinsByArea).forEach(a=>a.sort((x,y)=>x-y));
+
+  const enemyTotals={};
+  runs.forEach(r=>r.enemies.forEach(e=>enemyTotals[e.name]=(enemyTotals[e.name]||0)+e.count));
+
+  const srcTotals={};
+  runs.forEach(r=>r.breakdown.forEach(b=>{
+    const k=b.group+"|"+b.label;
+    srcTotals[k]=srcTotals[k]||{group:b.group,label:b.label,amount:0};
+    srcTotals[k].amount+=b.amount;
+  }));
+
+  const T=(f)=>runs.reduce((a,r)=>a+(r[f]||0),0);
+  return {
+    engine:parsed.engine, slot:P.SaveSlotName||"", saved:ticksToDate(P.Timestamp),
+    build:P.CreationChangelist,
+    souls:S.SoulFragments||0, diffPoints:S.NumDifficultyPoints||0,
+    logbook:S.NumTimesOpenedLogbook||0,
+    runs, collection,
+    skills:S.SkillTreeNodesAssigned||[],
+    difficulty:(S.DifficultyTreeAssignedPointsNew||[]).map(([k,v])=>({name:k,pts:v||0})),
+    challenges:(S.ChallengeCompletionCounts||[]).map(([k,v])=>({key:k,name:pretty(k),count:v||0})),
+    coinsByArea,
+    coinCount:Object.values(coinsByArea).reduce((a,b)=>a+b.length,0),
+    completedAreas:S.CompletedAreas||[], seenAreas:S.SeenAreas||[],
+    bossVariants:S.BossVariantsKilled||[], voidKills:S.VoidLobbyEnemiesKilled||[],
+    mutatorsFound:(S.MutatorsFound||[]).map(p=>({name:pretty(p),cat:categoryOf(p)})),
+    cosmetics:(S.CosmeticPAs||[]).map(pretty),
+    lastBossVariant:(S.LastEncounteredBossVariantInArea||[]).map(([k,v])=>
+      ({area:String(k&&k.TagName||"").replace(/^Area\./,""),variant:v})),
+    enemyTotals, srcTotals,
+    tot:{kills:T("kills"),gold:T("gold"),deaths:T("deaths"),downed:T("downed"),
+         dealt:T("dealt"),taken:T("taken"),hits:T("hits"),miss:T("miss"),weak:T("weak"),
+         time:T("time")}
+  };
+}
+
+/* ============================================================
+   PART 3 — rendering
+   ============================================================ */
+let D=null, ui={enemySort:"count",enemyDir:-1,enemyQ:"",chalQ:"",chalFilter:"all",
+                colQ:"",colCat:"all",runWeapon:"all",runSort:"idx"};
+
+function statCard(k,v,note,cls){
+  return '<div class="card stat"><div class="k">'+esc(k)+'</div><div class="v '+(cls||"")+'">'+v+'</div>'+
+    (note?'<div class="n">'+esc(note)+'</div>':'')+'</div>';
+}
+function barRow(label,value,max,color,valText){
+  const pct=max>0?Math.max(1,value/max*100):0;
+  return '<div class="brow"><div class="blab"><span>'+esc(label)+'</span><span class="bv">'+(valText||nf(Math.round(value)))+'</span></div>'+
+    '<div class="bar"><i style="width:'+pct.toFixed(1)+'%;background:'+(color||"var(--phosphor)")+'"></i></div></div>';
+}
+
+/* ---- signature: the dive profile ---- */
+function diveProfile(nodes){
+  if(!nodes.length) return '<p style="color:var(--muted);font-size:13px">No node path recorded for this run.</p>';
+  const stepX=44, padL=16, padT=18, drop=13;
+  const w=padL*2+Math.max(1,nodes.length-1)*stepX, h=padT*2+(nodes.length-1)*drop+34;
+  let path="", dots="", ticks="";
+  nodes.forEach((n,i)=>{
+    const x=padL+i*stepX, y=padT+i*drop;
+    path+=(i?" L":"M")+x+" "+y;
+    dots+='<circle cx="'+x+'" cy="'+y+'" r="5" fill="'+nodeColor(n)+'"><title>'+esc((i+1)+". "+n)+'</title></circle>';
+    if(n==="Boss"||n==="Void"||i===0||i===nodes.length-1)
+      ticks+='<text x="'+x+'" y="'+(y+19)+'" fill="#6E93A0" font-size="8.5" font-family="ui-monospace,monospace" text-anchor="middle">'+esc(n==="Elite Enemy"?"Elite":n)+'</text>';
+  });
+  const uniq=[...new Set(nodes)];
+  return '<div class="dive"><svg width="'+w+'" height="'+h+'" role="img" aria-label="Node path for this run, drawn as a descent">'+
+    '<path d="'+path+'" fill="none" stroke="#1C4859" stroke-width="2"/>'+dots+ticks+'</svg></div>'+
+    '<div class="legend">'+uniq.map(n=>'<span><i style="background:'+nodeColor(n)+'"></i>'+esc(n)+'</span>').join("")+'</div>';
+}
+
+/* ---------- panel: overview ---------- */
+function tabOverview(){
+  const t=D.tot, acc=(t.hits+t.miss)>0?t.hits/(t.hits+t.miss)*100:null;
+  const wins=D.runs.filter(r=>r.win).length;
+  let h="";
+  if(!D.runs.length) h+='<div class="note"><b>No run history in this file.</b> Unlocks and collection data '+
+    'loaded, but the run records are missing — usually a partial copy, or a profile that hasn\'t finished a run yet. '+
+    'Re-copy Profile1.sav with the game closed.</div>';
+  h+='<div class="grid g4">'+
+    statCard("Runs recorded",nf(D.runs.length),wins+" completed")+
+    statCard("Total kills",nf(t.kills))+
+    statCard("Damage dealt",nf(Math.round(t.dealt)))+
+    statCard("Damage taken",nf(Math.round(t.taken)),null,"coral")+
+    statCard("Accuracy",acc==null?"—":acc.toFixed(1)+"%",nf(t.hits)+" hits / "+nf(t.miss)+" missed")+
+    statCard("Weakspot rate",t.hits?(t.weak/t.hits*100).toFixed(1)+"%":"—",nf(t.weak)+" weakspot hits")+
+    statCard("Soul Fragments",nf(D.souls),null,"brass")+
+    statCard("Time in runs",fmtDur(t.time))+
+    '</div>';
+
+  const src=Object.values(D.srcTotals).sort((a,b)=>b.amount-a.amount);
+  const maxSrc=src.length?src[0].amount:0;
+  const totalSrc=src.reduce((a,b)=>a+b.amount,0);
+  h+='<div class="grid g2" style="margin-top:16px">';
+  h+='<div class="card"><h3>Where your damage comes from</h3>'+
+     (src.length?src.map(s=>barRow(
+        s.label+(s.group==="Blessing"?"  ·  blessing":""),s.amount,maxSrc,srcColor(s.label),
+        nf(Math.round(s.amount))+"  ("+(totalSrc?(s.amount/totalSrc*100).toFixed(1):0)+"%)"
+      )).join(""):'<p style="color:var(--muted)">No breakdown recorded.</p>')+
+     '<p style="font-size:12.5px;color:var(--muted);margin-top:10px">Blessings are the Atlantean god damage sources tracked separately from your weapon and ability.</p></div>';
+
+  const md=Math.max(...D.runs.map(r=>r.dealt),1);
+  h+='<div class="card"><h3>Damage per run</h3>'+
+     D.runs.map(r=>barRow("Run "+r.idx+" · "+(r.weapon||"—"),r.dealt,md,"#79CDBB")).join("")+'</div>';
+  h+='</div>';
+
+  h+='<div class="grid g2" style="margin-top:16px">';
+  h+='<div class="card"><h3>Progress</h3>'+
+     '<div class="kv"><span class="kk">Areas completed</span><span class="vv">'+esc(D.completedAreas.join(", ")||"—")+'</span></div>'+
+     '<div class="kv"><span class="kk">Area seen, not cleared</span><span class="vv">'+esc(D.seenAreas.join(", ")||"—")+'</span></div>'+
+     '<div class="kv"><span class="kk">Boss variants killed</span><span class="vv">'+esc(D.bossVariants.join(", ")||"—")+'</span></div>'+
+     '<div class="kv"><span class="kk">Void lobby kills</span><span class="vv">'+esc(D.voidKills.join(", ")||"—")+'</span></div>'+
+     '<div class="kv"><span class="kk">Hidden coins found</span><span class="vv">'+nf(D.coinCount)+'</span></div>'+
+     '<div class="kv"><span class="kk">Logbook opened</span><span class="vv">'+nf(D.logbook)+'× </span></div>'+
+     '</div>';
+  h+='<div class="card"><h3>Skill tree — '+D.skills.length+' nodes assigned</h3>'+
+     (D.skills.length?D.skills.map(s=>'<span class="tag">'+esc(s)+'</span>').join(""):'<p style="color:var(--muted)">None assigned.</p>')+
+     '<h3 style="margin-top:16px">Difficulty modifiers active</h3>'+
+     (D.difficulty.filter(d=>d.pts>0).length
+       ? D.difficulty.filter(d=>d.pts>0).map(d=>'<span class="tag">'+esc(d.name)+' <i>'+d.pts+'</i></span>').join("")
+       : '<p style="color:var(--muted);font-size:13px">None — '+nf(D.diffPoints)+' point'+(D.diffPoints===1?"":"s")+' unspent.</p>')+
+     '</div>';
+  h+='</div>';
+  return h;
+}
+
+/* ---------- panel: runs ---------- */
+function runDetail(r){
+  const maxB=r.breakdown.length?r.breakdown[0].amount:0;
+  const totB=r.breakdown.reduce((a,b)=>a+b.amount,0);
+  let h='<div class="rbody">';
+
+  h+='<div class="grid g4" style="margin-bottom:18px">'+
+    statCard("Damage dealt",nf(Math.round(r.dealt)))+
+    statCard("Damage taken",nf(Math.round(r.taken)),null,"coral")+
+    statCard("Accuracy",r.acc==null?"—":r.acc.toFixed(1)+"%",nf(r.hits)+" / "+nf(r.hits+r.miss)+" shots")+
+    statCard("Weakspots",r.weakPct==null?"—":r.weakPct.toFixed(1)+"%",nf(r.weak)+" hits")+
+    '</div>';
+
+  h+='<div class="grid g2">';
+
+  h+='<div><p class="sub-h">Loadout</p>'+
+     '<div class="kv"><span class="kk">Weapon</span><span class="vv">'+esc(r.weapon||"—")+'</span></div>'+
+     '<div class="kv"><span class="kk">Primary fire mod</span><span class="vv">'+esc(r.modPrimary||"—")+'</span></div>'+
+     '<div class="kv"><span class="kk">Secondary fire mod</span><span class="vv">'+esc(r.modSecondary||"—")+'</span></div>'+
+     '<div class="kv"><span class="kk">Ability</span><span class="vv">'+esc(r.ability||"—")+'</span></div>'+
+     '<div class="kv"><span class="kk">Charms</span><span class="vv">'+esc(r.charms.join(", ")||"—")+'</span></div>'+
+     '<p class="sub-h" style="margin-top:16px">Run</p>'+
+     '<div class="kv"><span class="kk">Duration</span><span class="vv">'+fmtDur(r.time)+'</span></div>'+
+     '<div class="kv"><span class="kk">Level / room reached</span><span class="vv">'+nf(r.level)+' / '+nf(r.room)+'</span></div>'+
+     '<div class="kv"><span class="kk">Loop</span><span class="vv">'+nf(r.loop)+'</span></div>'+
+     '<div class="kv"><span class="kk">Peak health</span><span class="vv">'+nf(Math.round(r.maxHP))+'</span></div>'+
+     '<div class="kv"><span class="kk">Gold / keys</span><span class="vv">'+nf(r.gold)+' / '+nf(r.keys)+'</span></div>'+
+     '<div class="kv"><span class="kk">Deaths / downed</span><span class="vv">'+nf(r.deaths)+' / '+nf(r.downed)+'</span></div>'+
+     (r.revives?'<div class="kv"><span class="kk">Revived teammates</span><span class="vv">'+nf(r.revives)+'</span></div>':"")+
+     '<div class="kv"><span class="kk">Ended by</span><span class="vv">'+esc(r.killedBy||"survived")+'</span></div>'+
+     '</div>';
+
+  h+='<div><p class="sub-h">Damage by source</p>'+
+     (r.breakdown.length?r.breakdown.map(b=>barRow(
+       b.label+(b.group==="Blessing"?"  ·  blessing":""),b.amount,maxB,srcColor(b.label),
+       nf(Math.round(b.amount))+"  ("+(totB?(b.amount/totB*100).toFixed(1):0)+"%)"
+     )).join(""):'<p style="color:var(--muted);font-size:13px">Not recorded.</p>');
+
+  if(r.coop){
+    h+='<p class="sub-h" style="margin-top:16px">Co-op partner — '+esc(r.coop.player)+'</p>'+
+       '<div class="kv"><span class="kk">Weapon</span><span class="vv">'+esc(r.coop.weapon||"—")+'</span></div>'+
+       '<div class="kv"><span class="kk">Damage dealt</span><span class="vv">'+nf(Math.round(r.coop.dealt))+'</span></div>'+
+       '<div class="kv"><span class="kk">Damage taken</span><span class="vv">'+nf(Math.round(r.coop.taken))+'</span></div>'+
+       '<div class="kv"><span class="kk">Kills</span><span class="vv">'+nf(r.coop.kills)+'</span></div>'+
+       '<div class="kv"><span class="kk">Your share of damage</span><span class="vv">'+
+         ((r.dealt+r.coop.dealt)>0?(r.dealt/(r.dealt+r.coop.dealt)*100).toFixed(1)+"%":"—")+'</span></div>';
+  }
+  h+='</div></div>';
+
+  h+='<p class="sub-h" style="margin-top:20px">Path taken — '+r.nodes.length+' nodes</p>'+diveProfile(r.nodes);
+
+  h+='<div class="grid g2" style="margin-top:20px">';
+  h+='<div><p class="sub-h">Mutators picked up ('+r.mutators.length+')</p>'+
+     (r.mutators.length?r.mutators.map(m=>'<span class="tag">'+esc(m.name)+(m.rank>1?' <i>×'+m.rank+'</i>':"")+'</span>').join(""):'<p style="color:var(--muted);font-size:13px">None.</p>')+
+     '</div>';
+  h+='<div><p class="sub-h">Challenges completed this run ('+r.challenges.length+')</p>'+
+     (r.challenges.length?r.challenges.map(c=>'<span class="tag">'+esc(c)+'</span>').join(""):'<p style="color:var(--muted);font-size:13px">None.</p>')+
+     '</div>';
+  h+='</div>';
+
+  if(r.enemies.length){
+    const top=[...r.enemies].sort((a,b)=>b.count-a.count);
+    h+='<p class="sub-h" style="margin-top:20px">Kills by enemy ('+top.length+' types)</p>'+
+       top.map(e=>'<span class="tag">'+esc(e.name)+' <i>'+e.count+'</i></span>').join("");
+  }
+  return h+'</div>';
+}
+
+function tabRuns(){
+  if(!D.runs.length) return '<div class="note"><b>No runs recorded.</b> Finish a run in Abyssus, '+
+    'then reload the save file here.</div>';
+  const weapons=[...new Set(D.runs.map(r=>r.weapon).filter(Boolean))].sort();
+  let list=D.runs.filter(r=>ui.runWeapon==="all"||r.weapon===ui.runWeapon);
+  const S={idx:(a,b)=>a.idx-b.idx,dealt:(a,b)=>b.dealt-a.dealt,kills:(a,b)=>b.kills-a.kills,
+           acc:(a,b)=>(b.acc||0)-(a.acc||0),time:(a,b)=>(b.time||0)-(a.time||0)};
+  list=[...list].sort(S[ui.runSort]||S.idx);
+
+  let h='<div class="ctl">'+
+    '<select id="runWeapon"><option value="all">All weapons</option>'+
+      weapons.map(w=>'<option'+(ui.runWeapon===w?' selected':'')+'>'+esc(w)+'</option>').join("")+'</select>'+
+    '<select id="runSort">'+
+      [["idx","Run order"],["dealt","Most damage"],["kills","Most kills"],["acc","Best accuracy"],["time","Longest"]]
+      .map(([v,l])=>'<option value="'+v+'"'+(ui.runSort===v?' selected':'')+'>'+l+'</option>').join("")+'</select>'+
+    '<span class="count">'+list.length+' of '+D.runs.length+' runs</span></div>';
+
+  h+=list.map(r=>{
+    const bits=[r.weapon||"—"];
+    if(r.ability) bits.push(r.ability);
+    if(r.loop) bits.push("loop "+r.loop);
+    if(r.infinite) bits.push("infinite");
+    return '<details class="run"><summary>'+
+      '<span class="rnum">'+r.idx+'</span>'+
+      '<span><span class="rtitle">'+(r.win?'<span class="w">Completed</span>':'Ended by '+esc(r.killedBy||"—"))+'</span>'+
+      '<span class="rmeta">'+esc(bits.join("  ·  "))+'  ·  '+fmtDur(r.time)+'</span></span>'+
+      '<span class="rfig"><span class="d">'+nf(Math.round(r.dealt))+'</span> dealt<br>'+
+        '<span class="t">'+nf(Math.round(r.taken))+'</span> taken<br>'+
+        (r.acc==null?"—":r.acc.toFixed(0)+"% acc")+'</span>'+
+      '</summary>'+runDetail(r)+'</details>';
+  }).join("");
+  return h;
+}
+
+/* ---------- panel: enemies ---------- */
+function tabEnemies(){
+  const perRun={}; D.runs.forEach(r=>r.enemies.forEach(e=>{
+    perRun[e.name]=perRun[e.name]||{runs:0,best:0};
+    perRun[e.name].runs++; perRun[e.name].best=Math.max(perRun[e.name].best,e.count);
+  }));
+  let rows=Object.entries(D.enemyTotals).map(([name,count])=>({
+    name,count,runs:(perRun[name]||{}).runs||0,best:(perRun[name]||{}).best||0,
+    avg:count/Math.max(1,(perRun[name]||{}).runs||1)
+  }));
+  const q=ui.enemyQ.toLowerCase();
+  if(q) rows=rows.filter(r=>r.name.toLowerCase().includes(q));
+  rows.sort((a,b)=>{const k=ui.enemySort;
+    return (typeof a[k]==="string"?a[k].localeCompare(b[k]):a[k]-b[k])*ui.enemyDir;});
+  const max=Math.max(...rows.map(r=>r.count),1);
+  const arrow=k=>ui.enemySort===k?'<span class="ar">'+(ui.enemyDir>0?"▲":"▼")+'</span>':"";
+  const th=(k,l,cls)=>'<th class="'+(cls||"")+'" data-sort="'+k+'">'+l+' '+arrow(k)+'</th>';
+
+  return '<div class="ctl"><input type="search" id="enemyQ" placeholder="Filter enemies…" value="'+esc(ui.enemyQ)+'">'+
+    '<span class="count">'+rows.length+' enemy types · '+nf(rows.reduce((a,b)=>a+b.count,0))+' kills</span></div>'+
+    '<div class="scroll"><table><thead><tr>'+
+      th("name","Enemy")+th("count","Total kills","num")+th("runs","Runs seen","num")+
+      th("best","Best run","num")+th("avg","Avg / run","num")+'<th class="no">Share</th>'+
+    '</tr></thead><tbody>'+
+    (rows.length?rows.map(r=>'<tr><td>'+esc(r.name)+'</td>'+
+      '<td class="num">'+nf(r.count)+'</td><td class="num">'+r.runs+'</td>'+
+      '<td class="num">'+r.best+'</td><td class="num">'+r.avg.toFixed(1)+'</td>'+
+      '<td style="width:180px"><div class="bar"><i style="width:'+(r.count/max*100).toFixed(1)+'%"></i></div></td></tr>').join("")
+      :'<tr><td colspan="6" style="color:var(--muted)">No enemies match that filter.</td></tr>')+
+    '</tbody></table></div>';
+}
+
+/* ---------- panel: challenges ---------- */
+function tabChallenges(){
+  let rows=D.challenges.slice();
+  const q=ui.chalQ.toLowerCase();
+  if(q) rows=rows.filter(r=>r.name.toLowerCase().includes(q)||r.key.toLowerCase().includes(q));
+  if(ui.chalFilter==="started") rows=rows.filter(r=>r.count>0);
+  if(ui.chalFilter==="untouched") rows=rows.filter(r=>r.count===0);
+  rows.sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name));
+  const started=D.challenges.filter(c=>c.count>0).length;
+
+  return '<div class="note"><b>About these numbers.</b> The save file records your running counter for each '+
+    'challenge, but not the target you\'re counting toward — that lives in the game\'s packed assets, not here. '+
+    'So these are real progress counts, not percentages. A counter at 0 means untouched.</div>'+
+    '<div class="ctl"><input type="search" id="chalQ" placeholder="Filter challenges…" value="'+esc(ui.chalQ)+'">'+
+    [["all","All"],["started","In progress"],["untouched","Untouched"]].map(([v,l])=>
+      '<button class="chip" data-chal="'+v+'" aria-pressed="'+(ui.chalFilter===v?"true":"false")+'">'+l+'</button>').join("")+
+    '<span class="count">'+started+' of '+D.challenges.length+' started</span></div>'+
+    '<div class="scroll"><table><thead><tr><th class="no">Challenge</th><th class="no num">Counter</th><th class="no">State</th></tr></thead><tbody>'+
+    (rows.length?rows.map(r=>'<tr><td>'+esc(r.name)+'</td><td class="num">'+nf(r.count)+'</td>'+
+      '<td><span class="state '+(r.count>0?"done":"zero")+'">'+(r.count>0?"in progress":"untouched")+'</span></td></tr>').join("")
+      :'<tr><td colspan="3" style="color:var(--muted)">Nothing matches.</td></tr>')+
+    '</tbody></table></div>';
+}
+
+/* ---------- panel: collection ---------- */
+function tabCollection(){
+  const cats=[...new Set(D.collection.map(c=>c.cat))].sort();
+  let rows=D.collection.slice();
+  const q=ui.colQ.toLowerCase();
+  if(q) rows=rows.filter(r=>r.name.toLowerCase().includes(q));
+  if(ui.colCat!=="all") rows=rows.filter(r=>r.cat===ui.colCat);
+
+  const byCat={}; D.collection.forEach(c=>{byCat[c.cat]=(byCat[c.cat]||0)+1;});
+  let h='<div class="grid g4">'+Object.entries(byCat).map(([k,v])=>statCard(k,nf(v))).join("")+'</div>';
+
+  h+='<div class="ctl" style="margin-top:18px"><input type="search" id="colQ" placeholder="Filter items…" value="'+esc(ui.colQ)+'">'+
+    '<select id="colCat"><option value="all">All categories</option>'+
+      cats.map(c=>'<option'+(ui.colCat===c?' selected':'')+'>'+esc(c)+'</option>').join("")+'</select>'+
+    '<span class="count">'+rows.length+' items</span></div>';
+
+  h+='<div class="scroll"><table><thead><tr><th class="no">Item</th><th class="no">Category</th><th class="no">State</th></tr></thead><tbody>'+
+    (rows.length?rows.map(r=>'<tr><td>'+esc(r.name)+'</td><td style="color:var(--muted)">'+esc(r.cat)+'</td>'+
+      '<td><span class="state '+(r.state==="Unlocked"?"done":"zero")+'">'+esc(r.state.toLowerCase())+'</span></td></tr>').join("")
+      :'<tr><td colspan="3" style="color:var(--muted)">Nothing matches.</td></tr>')+
+    '</tbody></table></div>';
+
+  h+='<div class="card" style="margin-top:16px"><h3>Mutators encountered — '+D.mutatorsFound.length+'</h3>'+
+     '<p style="color:var(--muted);font-size:13px;margin-top:-4px">Everything the game has shown you at least once, including internal behaviour modifiers.</p>'+
+     D.mutatorsFound.slice(0,400).map(m=>'<span class="tag">'+esc(m.name)+'</span>').join("")+'</div>';
+  return h;
+}
+
+/* ---------- panel: coins ---------- */
+function tabCoins(){
+  const areas=Object.keys(D.coinsByArea).sort();
+  let h='<div class="note"><b>What the save can and can\'t tell you.</b> It records the ID of every coin you\'ve '+
+    'found, but not how many exist in each area. The "at least" figure below is the highest coin number you\'ve '+
+    'picked up — the real total may be higher. Gaps in the sequence are coins you\'ve definitely missed.</div>';
+  if(!areas.length) return h+'<p style="color:var(--muted)">No hidden coins recorded yet.</p>';
+
+  h+='<div class="grid g2">';
+  areas.forEach(a=>{
+    const found=D.coinsByArea[a], hi=Math.max(...found);
+    const missing=[]; for(let i=1;i<=hi;i++) if(!found.includes(i)) missing.push(i);
+    h+='<div class="card"><h3>'+esc(a)+'</h3>'+
+      '<div class="kv"><span class="kk">Found</span><span class="vv">'+found.length+' of at least '+hi+'</span></div>'+
+      barRow("Confirmed coverage",found.length,hi,"var(--brass)",found.length+" / "+hi)+
+      '<p class="sub-h" style="margin-top:12px">Found</p>'+
+      found.map(n=>'<span class="tag">#'+n+'</span>').join("")+
+      (missing.length?'<p class="sub-h" style="margin-top:12px">Missed in that range</p>'+
+        missing.map(n=>'<span class="tag" style="border-color:var(--coral);color:var(--coral)">#'+n+'</span>').join("")
+        :'<p style="color:var(--phosphor);font-size:13px;margin-top:12px">No gaps up to #'+hi+'.</p>')+
+      '</div>';
+  });
+  return h+'</div>';
+}
+
+/* ---------- tab wiring ---------- */
+const TABS=[["overview","Overview",tabOverview],["runs","Runs",tabRuns],["enemies","Enemies",tabEnemies],
+            ["challenges","Challenges",tabChallenges],["collection","Collection",tabCollection],
+            ["coins","Hidden coins",tabCoins]];
+let active="overview";
+
+function renderTabs(){
+  document.getElementById("tabs").innerHTML=TABS.map(([id,label])=>
+    '<button role="tab" data-tab="'+id+'" aria-selected="'+(active===id?"true":"false")+'">'+label+'</button>').join("");
+  document.getElementById("panels").innerHTML=TABS.map(([id])=>
+    '<div class="panel'+(active===id?" on":"")+'" data-panel="'+id+'"></div>').join("");
+  renderActive();
+}
+function renderActive(){
+  const def=TABS.find(t=>t[0]===active);
+  const el=document.querySelector('[data-panel="'+active+'"]');
+  if(el&&def) el.innerHTML=def[2]();
+  document.querySelectorAll('#tabs button').forEach(b=>
+    b.setAttribute("aria-selected",b.dataset.tab===active?"true":"false"));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle("on",p.dataset.panel===active));
+}
+
+document.addEventListener("click",e=>{
+  const tb=e.target.closest("#tabs button");
+  if(tb){ active=tb.dataset.tab; renderActive(); return; }
+  const th=e.target.closest("th[data-sort]");
+  if(th){ const k=th.dataset.sort;
+    if(ui.enemySort===k) ui.enemyDir*=-1; else {ui.enemySort=k; ui.enemyDir=k==="name"?1:-1;}
+    renderActive(); return; }
+  const chip=e.target.closest("[data-chal]");
+  if(chip){ ui.chalFilter=chip.dataset.chal; renderActive(); return; }
+});
+document.addEventListener("input",e=>{
+  const t=e.target;
+  if(t.id==="enemyQ"){ ui.enemyQ=t.value; renderActive(); focusBack("enemyQ"); }
+  if(t.id==="chalQ"){ ui.chalQ=t.value; renderActive(); focusBack("chalQ"); }
+  if(t.id==="colQ"){ ui.colQ=t.value; renderActive(); focusBack("colQ"); }
+});
+document.addEventListener("change",e=>{
+  const t=e.target;
+  if(t.id==="runWeapon"){ ui.runWeapon=t.value; renderActive(); }
+  if(t.id==="runSort"){ ui.runSort=t.value; renderActive(); }
+  if(t.id==="colCat"){ ui.colCat=t.value; renderActive(); }
+});
+function focusBack(id){ const el=document.getElementById(id); if(el){const v=el.value; el.focus(); el.setSelectionRange(v.length,v.length);} }
+
+/* ---------- file loading ---------- */
+const drop=document.getElementById("drop"), fileEl=document.getElementById("file");
+document.getElementById("pick").onclick=()=>fileEl.click();
+fileEl.onchange=()=>fileEl.files[0]&&load(fileEl.files[0]);
+["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("over");}));
+["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("over");}));
+drop.addEventListener("drop",e=>{const f=e.dataTransfer.files[0]; if(f) load(f);});
+document.getElementById("reset").onclick=()=>{
+  document.getElementById("app").classList.add("hide");
+  document.getElementById("loader").classList.remove("hide");
+  document.getElementById("loadErr").innerHTML=""; fileEl.value="";
+};
+
+function load(file){
+  const fr=new FileReader();
+  fr.onload=()=>{
+    const errBox=document.getElementById("loadErr");
+    try{
+      const parsed=parseGVAS(fr.result);
+      D=shape(parsed);
+      if(!D.runs.length && !D.collection.length)
+        throw new Error("Parsed the file, but found no profile data. This looks like a settings or session file rather than Profile1.sav.");
+      document.getElementById("slotN").textContent="";
+      const when=D.saved?D.saved.toLocaleString():"unknown";
+      document.getElementById("slotline").innerHTML=
+        "Slot <b>"+esc(D.slot||"—")+"</b><br>saved "+esc(when)+"<br>Unreal "+esc(D.engine)+" · build "+esc(D.build==null?"—":D.build);
+      document.getElementById("loader").classList.add("hide");
+      document.getElementById("app").classList.remove("hide");
+      active="overview"; renderTabs();
+      window.scrollTo(0,0);
+    }catch(err){
+      errBox.innerHTML='<div class="drop err"><h2>Couldn\'t read that file</h2><p>'+esc(err.message)+
+        '</p><p>Pick <b>Profile1.sav</b> from the SaveGames folder. GameSettings.sav and '+
+        'SAVE_GAME_SESSION_SLOT.sav only hold audio settings and slot bookkeeping.</p></div>';
+    }
+  };
+  fr.onerror=()=>{document.getElementById("loadErr").innerHTML=
+    '<div class="drop err"><h2>Couldn\'t read that file</h2><p>The browser blocked reading it. Try copying the save somewhere else first.</p></div>';};
+  fr.readAsArrayBuffer(file);
+}
+</script>
+</body>
+</html>
