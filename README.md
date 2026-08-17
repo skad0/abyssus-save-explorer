@@ -11,6 +11,19 @@ Drop `%LOCALAPPDATA%\Abyssus\Saved\SaveGames\Profile1.sav`. Close the game first
 
 v1 of this tool lives at `legacy-v1.html` / `legacy/index.html`.
 
+## Render
+
+This is a Vite static app. The CDN must serve **`dist`**, not the repo root. If the live page still loads `/src/main.ts`, the publish directory is wrong.
+
+In the [Render Dashboard](https://dashboard.render.com) → this service → **Settings**:
+
+| Field | Value |
+| --- | --- |
+| Build Command | `npm ci --include=dev && npm run build` |
+| Publish Directory | `dist` |
+
+Then **Manual Deploy → Deploy latest commit**. Vite and Svelte live in `devDependencies`; `--include=dev` is required because Render sets `NODE_ENV=production` during install.
+
 ## Assumptions
 
 - Surge Fissure totals come from wiki.gg (Lobby 8, Temple/Submarine/Gardens/Sanctuary 15, Royal Abyss 6). Room names are not in the save.
