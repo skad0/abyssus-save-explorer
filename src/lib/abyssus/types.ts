@@ -157,6 +157,21 @@ export interface AbilityStats {
 	totalKills: number;
 }
 
+export interface ComboStats {
+	kind: 'weapon-ability' | 'weapon-aspect' | 'ability-aspect';
+	left: string;
+	right: string;
+	runs: number;
+	wins: number;
+	winRate: number;
+	avgDealt: number;
+	avgDps: number | null;
+	avgSurvival: number;
+	avgKills: number;
+	vsBaselineDealt: number;
+	notes: string[];
+}
+
 export interface AbyssusProfile {
 	source: ParseSource;
 	fileName: string;
@@ -199,6 +214,7 @@ export interface AbyssusProfile {
 	weaponStats: WeaponStats[];
 	abilityStats: AbilityStats[];
 	blessingFreq: { god: string; runs: number; damage: number }[];
+	comboStats: ComboStats[];
 	sections: ParseSection[];
 	unknownKeys: Record<string, unknown>;
 	warnings: string[];
@@ -254,6 +270,7 @@ export function emptyProfile(fileName: string, source: ParseSource): AbyssusProf
 		weaponStats: [],
 		abilityStats: [],
 		blessingFreq: [],
+		comboStats: [],
 		sections: [],
 		unknownKeys: {},
 		warnings: [],

@@ -5,7 +5,7 @@
 	import StackBar from '$lib/abyssus/components/StackBar.svelte';
 	import { fmtNum, fmtPct } from '$lib/abyssus/pretty';
 	import { biomeWinRates, damageMixPercent } from '$lib/abyssus/stats';
-	import type { RunRecord } from '$lib/abyssus/types';
+	import type { ComboStats, RunRecord } from '$lib/abyssus/types';
 	import {
 		exportProfileJson,
 		exportRunsCsv,
@@ -27,6 +27,7 @@
 
 	let fileInput: HTMLInputElement | undefined = $state();
 	let dragOver = $state(false);
+	let comboKind = $state<ComboStats['kind']>('weapon-ability');
 	let listScrollTop = $state(0);
 	const ROW_H = 56;
 	const VIEW_H = 420;
@@ -34,6 +35,9 @@
 	const profile = $derived(viewerState.profile);
 	const mix = $derived(profile ? damageMixPercent(profile) : []);
 	const biomeWr = $derived(profile ? biomeWinRates(profile) : []);
+	const comboRows = $derived(
+		profile ? profile.comboStats.filter((c) => c.kind === comboKind) : []
+	);
 
 	const filteredRuns = $derived.by(() => {
 		if (!profile) return [] as RunRecord[];
@@ -250,6 +254,38 @@
 		a.download = `${profile?.slot || 'abyssus'}-runs.csv`;
 		a.click();
 		URL.revokeObjectURL(a.href);
+	}
+
+	function openCombo(row: ComboStats) {
+		if (row.kind === 'weapon-ability') {
+			viewerState.filters.weapon = row.left;
+			viewerState.filters.ability = row.right;
+		} else if (row.kind === 'weapon-aspect') {
+			viewerState.filters.weapon = row.left;
+			viewerState.filters.ability = 'all';
+		} else if (row.kind === 'ability-aspect') {
+			viewerState.filters.weapon = 'all';
+			viewerState.filters.ability = row.left;
+		} else {
+			const _n: never = row.kind;
+			return _n;
+		}
+		viewerState.panel = 'runs';
+	}
+
+	function comboKindLabel(kind: ComboStats['kind']): string {
+		switch (kind) {
+			case 'weapon-ability':
+				return 'Weapon × ability';
+			case 'weapon-aspect':
+				return 'Weapon × lead aspect';
+			case 'ability-aspect':
+				return 'Ability × lead aspect';
+			default: {
+				const _n: never = kind;
+				return _n;
+			}
+		}
 	}
 
 	const wins = $derived(profile ? profile.runs.filter((r) => r.win).length : 0);
@@ -622,9 +658,7 @@
 							{/each}
 						</tbody>
 					</table>
-				</section>
-				<section class="panel">
-					<h3 class="panel-title">Blessing frequency</h3>
+					<h3 class="panel-title mt-3">Blessing frequency</h3>
 					{#each profile.blessingFreq as b}
 						<div class="flex justify-between text-xs py-0.5 font-mono"><span>{b.god}</span><span>{b.runs} runs · {fmtNum(b.damage)} dmg</span></div>
 					{/each}
@@ -632,6 +666,62 @@
 					{#each biomeWr as b}
 						<div class="flex justify-between text-xs py-0.5 font-mono"><span>{b.biome}</span><span>{fmtPct(b.rate, 0)} ({b.wins}/{b.runs})</span></div>
 					{/each}
+				</section>
+				<section class="panel md:col-span-2">
+					<h3 class="panel-title">Combo efficiency</h3>
+					<p class="text-[11px] text-[var(--muted)] mb-2">
+						Your runs, not a tier list. DPS is damage/time. Survival is dealt/taken. vs avg is against this profile’s mean run damage.
+						Wiki notes are baked in (wiki.gg + community aspect guide) — nothing is uploaded.
+					</p>
+					<div class="flex flex-wrap gap-1 mb-2">
+						{#each (['weapon-ability', 'weapon-aspect', 'ability-aspect'] as const) as kind (kind)}
+							<button
+								type="button"
+								class="chip {comboKind === kind ? 'on' : ''}"
+								aria-pressed={comboKind === kind}
+								onclick={() => (comboKind = kind)}
+							>
+								{comboKindLabel(kind)}
+							</button>
+						{/each}
+					</div>
+					<div class="overflow-auto max-h-[280px]">
+						<table class="w-full text-xs">
+							<thead>
+								<tr class="text-[var(--muted)]">
+									<th class="text-left p-1">{comboKind === 'ability-aspect' ? 'Ability' : 'Weapon'}</th>
+									<th class="text-left p-1">{comboKind === 'weapon-ability' ? 'Ability' : 'Lead aspect'}</th>
+									<th class="p-1">Runs</th>
+									<th class="p-1">WR</th>
+									<th class="p-1">Avg dmg</th>
+									<th class="p-1">DPS</th>
+									<th class="p-1">vs avg</th>
+									<th class="text-left p-1">Notes</th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each comboRows as row (row.kind + row.left + row.right)}
+									<tr
+										class="border-t border-[var(--contour)] cursor-pointer hover:bg-[rgba(28,72,89,.28)]"
+										onclick={() => openCombo(row)}
+									>
+										<td class="p-1">{row.left}</td>
+										<td class="p-1">{row.right}</td>
+										<td class="p-1 text-center font-mono">{row.runs}</td>
+										<td class="p-1 text-center font-mono">{fmtPct(row.winRate, 0)}</td>
+										<td class="p-1 text-right font-mono">{fmtNum(Math.round(row.avgDealt))}</td>
+										<td class="p-1 text-right font-mono">{row.avgDps == null ? '—' : fmtNum(Math.round(row.avgDps))}</td>
+										<td class="p-1 text-right font-mono {row.vsBaselineDealt >= 1 ? 'text-[var(--phosphor)]' : 'text-[var(--coral)]'}">
+											{row.vsBaselineDealt >= 1 ? '+' : ''}{((row.vsBaselineDealt - 1) * 100).toFixed(0)}%
+										</td>
+										<td class="p-1 text-[11px] text-[var(--muted)] max-w-[28ch] truncate" title={row.notes.join(' · ')}>
+											{row.notes[0] ?? '—'}
+										</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
 				</section>
 			</div>
 		{:else if viewerState.panel === 'loadouts'}

@@ -27,6 +27,7 @@ describe('live Profile1.sav', () => {
 		expect(yard?.total).toBe(15);
 		expect(p.cosmetics.length).toBeGreaterThan(0);
 		expect(p.weaponStats.length).toBeGreaterThan(0);
+		expect(p.comboStats.some((c) => c.kind === 'weapon-ability')).toBe(true);
 		expect(p.srcTotals.some((s) => s.group === 'Blessing')).toBe(true);
 		const kill = p.challenges.find((c) => c.key === 'KillChallenge');
 		expect(kill?.state).not.toBe('untouched');

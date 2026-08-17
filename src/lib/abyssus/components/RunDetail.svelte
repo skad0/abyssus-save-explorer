@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { AbyssusProfile, RunRecord } from '$lib/abyssus/types';
 	import { fmtDur, fmtNum, fmtPct, mutatorLabel } from '$lib/abyssus/pretty';
-	import { damageMixPercent } from '$lib/abyssus/stats';
+	import { damageMixPercent, runInsight } from '$lib/abyssus/stats';
 	import StackBar from './StackBar.svelte';
 
 	interface Props {
@@ -26,6 +26,8 @@
 		}
 		return [...map.entries()];
 	});
+
+	const insight = $derived(runInsight(run, profile));
 </script>
 
 <div class="space-y-3 text-sm">
@@ -50,6 +52,36 @@
 		<div class="kv"><span>Ability</span><span>{run.ability ?? '—'}</span></div>
 		<div class="kv"><span>Primary mod</span><span>{run.modPrimary ?? '—'}</span></div>
 		<div class="kv"><span>Secondary mod</span><span>{run.modSecondary ?? '—'}</span></div>
+	</section>
+
+	<section>
+		<h4 class="sub-h">Combo efficiency</h4>
+		<div class="kv"><span>DPS</span><span>{insight.dps == null ? '—' : fmtNum(Math.round(insight.dps))}/s{#if insight.dpsVsAvg} ({insight.dpsVsAvg >= 1 ? '+' : ''}{((insight.dpsVsAvg - 1) * 100).toFixed(0)}% vs your avg){/if}</span></div>
+		<div class="kv"><span>Dealt / taken</span><span>{insight.survival.toFixed(1)}×</span></div>
+		<div class="kv"><span>Blessing share</span><span>{insight.blessingPct.toFixed(0)}%</span></div>
+		<div class="kv"><span>Ability share</span><span>{insight.abilityPct.toFixed(0)}%</span></div>
+		{#if insight.comboRank}
+			<div class="kv"><span>This pairing vs your other loadouts</span><span>#{insight.comboRank.place} of {insight.comboRank.of} by avg damage</span></div>
+		{/if}
+		{#if insight.weapon}
+			<p class="lore"><b>{insight.weapon.name}.</b> {insight.weapon.blurb} {insight.weapon.mechanic}</p>
+		{/if}
+		{#if insight.ability}
+			<p class="lore"><b>{insight.ability.wikiName}.</b> {insight.ability.blurb}</p>
+		{/if}
+		{#if insight.harpoonCombo}
+			<p class="lore">Harpoon secondary scales with the combo-point bank (wiki: default cap 4). A low-DPS high-damage run can still be a full-bank spend.</p>
+		{/if}
+		{#each insight.aspects as a (a.god)}
+			<p class="lore"><b>{a.wikiName} ({a.god}).</b> {a.mechanic}</p>
+		{/each}
+		{#if insight.synergies.length}
+			<ul class="syn">
+				{#each insight.synergies as s (s.id)}
+					<li><b>{s.title}.</b> {s.why}</li>
+				{/each}
+			</ul>
+		{/if}
 	</section>
 
 	{#if mix.length}
@@ -160,5 +192,17 @@
 		font-size: 10px;
 		border: 1px solid var(--contour);
 		padding: 2px 6px;
+	}
+	.lore {
+		font-size: 12px;
+		color: #d9cba8;
+		margin: 6px 0 0;
+		line-height: 1.4;
+	}
+	.syn {
+		margin: 8px 0 0;
+		padding-left: 1.1em;
+		font-size: 12px;
+		color: var(--cream);
 	}
 </style>
