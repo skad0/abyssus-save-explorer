@@ -1,0 +1,28 @@
+@import 'tailwindcss';
+
+:root {
+	--abyss: #08181f;
+	--shelf: #0f2b36;
+	--contour: #1c4859;
+	--phosphor: #79cdbb;
+	--cream: #eadfc6;
+	--coral: #e4674b;
+	--brass: #dfa63a;
+	--muted: #6e93a0;
+}
+
+html,
+body {
+	background: var(--abyss);
+	color: var(--cream);
+	font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+	font-size: 14px;
+	line-height: 1.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	* {
+		animation: none !important;
+		transition: none !important;
+	}
+}
