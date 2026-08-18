@@ -76,6 +76,17 @@ describe('partyCompareRows', () => {
 		expect(rows[1]).toMatchObject({ you: false, name: 'GhostRider', share: 75, weapon: 'Brine Rifle' });
 	});
 
+	it('unwraps Steam nicks on party rows', () => {
+		const rows = partyCompareRows(
+			run({
+				dealt: 1,
+				player: 'SXE$Me$1',
+				coop: [mate({ player: 'SXE$GhostRider$2002', dealt: 3 })]
+			})
+		);
+		expect(rows.map((r) => r.name)).toEqual(['Me', 'GhostRider']);
+	});
+
 	it('splits three-person damage and keeps zero-damage rows at 0%', () => {
 		const three = partyCompareRows(
 			run({

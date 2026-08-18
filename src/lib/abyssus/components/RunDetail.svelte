@@ -39,25 +39,9 @@
 		<div><span class="label">Accuracy</span><div class="val">{fmtPct(run.acc)}</div></div>
 	</div>
 
-	<section>
-		<h4 class="sub-h">Run</h4>
-		<div class="kv"><span>Duration</span><span>{fmtDur(run.time)}</span></div>
-		<div class="kv"><span>Level / room</span><span>{run.level ?? '—'} / {run.room ?? '—'}</span></div>
-		<div class="kv"><span>Loop</span><span>{run.loop}{run.infinite ? ' · infinite' : ''}</span></div>
-		<div class="kv"><span>Ended by</span><span>{run.killedBy ?? 'survived'}</span></div>
-	</section>
-
-	<section>
-		<h4 class="sub-h">Loadout (start of run)</h4>
-		<div class="kv"><span>Weapon</span><span>{run.weapon}</span></div>
-		<div class="kv"><span>Ability</span><span>{run.ability ?? '—'}</span></div>
-		<div class="kv"><span>Primary mod</span><span>{run.modPrimary ?? '—'}</span></div>
-		<div class="kv"><span>Secondary mod</span><span>{run.modSecondary ?? '—'}</span></div>
-	</section>
-
 	{#if party.length}
 		<section>
-			<h4 class="sub-h">Party this dive</h4>
+			<h4 class="sub-h party-h">Party this dive</h4>
 			<table class="party">
 				<thead>
 					<tr>
@@ -91,6 +75,22 @@
 			</div>
 		</section>
 	{/if}
+
+	<section>
+		<h4 class="sub-h">Run</h4>
+		<div class="kv"><span>Duration</span><span>{fmtDur(run.time)}</span></div>
+		<div class="kv"><span>Level / room</span><span>{run.level ?? '—'} / {run.room ?? '—'}</span></div>
+		<div class="kv"><span>Loop</span><span>{run.loop}{run.infinite ? ' · infinite' : ''}</span></div>
+		<div class="kv"><span>Ended by</span><span>{run.killedBy ?? 'survived'}</span></div>
+	</section>
+
+	<section>
+		<h4 class="sub-h">Loadout (start of run)</h4>
+		<div class="kv"><span>Weapon</span><span>{run.weapon}</span></div>
+		<div class="kv"><span>Ability</span><span>{run.ability ?? '—'}</span></div>
+		<div class="kv"><span>Primary mod</span><span>{run.modPrimary ?? '—'}</span></div>
+		<div class="kv"><span>Secondary mod</span><span>{run.modSecondary ?? '—'}</span></div>
+	</section>
 
 	<section>
 		<h4 class="sub-h">Combo efficiency</h4>
@@ -206,6 +206,9 @@
 		border-bottom: 1px solid var(--contour);
 		padding-bottom: 4px;
 		margin-bottom: 6px;
+	}
+	.party-h {
+		color: var(--phosphor);
 	}
 	.kv {
 		display: flex;

@@ -1,4 +1,5 @@
 import { lookupAbility, lookupAspect, lookupWeapon, matchingSynergies } from './catalogs/knowledge';
+import { displayPlayerName } from './pretty';
 import type { AbyssusProfile, AbilityStats, ComboStats, RunRecord, WeaponStats } from './types';
 
 export function leadGod(run: RunRecord): string | null {
@@ -244,6 +245,27 @@ export function damageMixPercent(profile: AbyssusProfile): { label: string; pct:
 	}));
 }
 
+export function pairByKey<T>(
+	you: T[],
+	them: T[],
+	keyOf: (row: T) => string
+): { key: string; you: T | null; them: T | null }[] {
+	const map = new Map<string, { you: T | null; them: T | null }>();
+	for (const row of you) map.set(keyOf(row), { you: row, them: null });
+	for (const row of them) {
+		const k = keyOf(row);
+		const cur = map.get(k);
+		if (cur) cur.them = row;
+		else map.set(k, { you: null, them: row });
+	}
+	return [...map.entries()].map(([key, v]) => ({ key, ...v }));
+}
+
+export function profileAcc(profile: AbyssusProfile): number | null {
+	const den = profile.tot.hits + profile.tot.miss;
+	return den > 0 ? (profile.tot.hits / den) * 100 : null;
+}
+
 export function biomeWinRates(profile: AbyssusProfile): { biome: string; wins: number; runs: number; rate: number }[] {
 	const map = new Map<string, { wins: number; runs: number }>();
 	for (const run of profile.runs) {
@@ -274,11 +296,11 @@ export interface PartyRow {
 }
 
 export function partyCompareRows(run: RunRecord): PartyRow[] {
-	const mates = Array.isArray(run.coop) ? run.coop : [];
+	const mates = run.coop ?? [];
 	if (!mates.length) return [];
 	const people = [
 		{
-			name: run.player || 'You',
+			name: displayPlayerName(run.player || 'You'),
 			you: true,
 			weapon: run.weapon,
 			ability: run.ability,
@@ -288,7 +310,7 @@ export function partyCompareRows(run: RunRecord): PartyRow[] {
 			deaths: run.deaths
 		},
 		...mates.map((p) => ({
-			name: p.player,
+			name: displayPlayerName(p.player),
 			you: false,
 			weapon: p.weapon ?? '—',
 			ability: p.ability,

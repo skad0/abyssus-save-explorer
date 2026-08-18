@@ -22,10 +22,12 @@ export interface ViewerFilters {
 
 export const viewerState = $state({
 	profile: null as AbyssusProfile | null,
+	other: null as AbyssusProfile | null,
 	error: '' as string,
 	panel: 'profile' as PanelId,
 	selectedRun: null as number | null,
 	compareRun: null as number | null,
+	otherSelectedRun: null as number | null,
 	focusIndex: 0,
 	searchOpen: false,
 	filters: {
@@ -47,10 +49,12 @@ export const viewerState = $state({
 
 export function resetViewer(): void {
 	viewerState.profile = null;
+	viewerState.other = null;
 	viewerState.error = '';
 	viewerState.panel = 'profile';
 	viewerState.selectedRun = null;
 	viewerState.compareRun = null;
+	viewerState.otherSelectedRun = null;
 	viewerState.focusIndex = 0;
 	viewerState.searchOpen = false;
 	viewerState.filters = {

@@ -4,7 +4,7 @@
 	import RunRow from '$lib/abyssus/components/RunRow.svelte';
 	import StackBar from '$lib/abyssus/components/StackBar.svelte';
 	import { fmtNum, fmtPct } from '$lib/abyssus/pretty';
-	import { biomeWinRates, damageMixPercent } from '$lib/abyssus/stats';
+	import { biomeWinRates, damageMixPercent, pairByKey, profileAcc } from '$lib/abyssus/stats';
 	import type { ComboStats, RunRecord } from '$lib/abyssus/types';
 	import { isTypingTarget } from '$lib/abyssus/viewer-keys';
 	import {
@@ -27,7 +27,9 @@
 	];
 
 	let fileInput: HTMLInputElement | undefined = $state();
+	let compareInput: HTMLInputElement | undefined = $state();
 	let dragOver = $state(false);
+	let compareDrag = $state(false);
 	let comboKind = $state<ComboStats['kind']>('weapon-ability');
 	let listScrollTop = $state(0);
 	let actionMsg = $state('');
@@ -35,8 +37,21 @@
 	const VIEW_H = 420;
 
 	const profile = $derived(viewerState.profile);
+	const other = $derived(viewerState.other);
 	const mix = $derived(profile ? damageMixPercent(profile) : []);
+	const otherMix = $derived(other ? damageMixPercent(other) : []);
 	const biomeWr = $derived(profile ? biomeWinRates(profile) : []);
+	const otherBiomeWr = $derived(other ? biomeWinRates(other) : []);
+	const pairedWeapons = $derived(
+		profile ? pairByKey(profile.weaponStats, other?.weaponStats ?? [], (w) => w.weapon) : []
+	);
+	const pairedAbilities = $derived(
+		profile ? pairByKey(profile.abilityStats, other?.abilityStats ?? [], (a) => a.ability) : []
+	);
+	const pairedBlessings = $derived(
+		profile ? pairByKey(profile.blessingFreq, other?.blessingFreq ?? [], (b) => b.god) : []
+	);
+	const pairedLoops = $derived(pairByKey(biomeWr, otherBiomeWr, (b) => b.biome));
 	const comboRows = $derived(
 		profile ? profile.comboStats.filter((c) => c.kind === comboKind) : []
 	);
@@ -99,6 +114,12 @@
 	const compareRun = $derived(
 		profile && viewerState.compareRun != null
 			? profile.runs.find((r) => r.index === viewerState.compareRun) ?? null
+			: null
+	);
+
+	const otherRun = $derived(
+		other && viewerState.otherSelectedRun != null
+			? other.runs.find((r) => r.index === viewerState.otherSelectedRun) ?? null
 			: null
 	);
 
@@ -169,17 +190,27 @@
 		return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 	});
 
-	async function loadFile(file: File) {
+	async function loadFile(file: File, slot?: 'you' | 'them') {
+		const into = slot ?? (viewerState.profile ? 'them' : 'you');
 		const buf = await file.arrayBuffer();
 		const result = parseFileBuffer(file.name, buf);
 		if (!result.ok || !result.profile) {
 			viewerState.error = result.error ?? 'Parse failed';
-			viewerState.profile = result.profile;
+			if (into === 'you') viewerState.profile = result.profile;
+			return;
+		}
+		viewerState.error = '';
+		if (into === 'them') {
+			viewerState.other = result.profile;
+			viewerState.otherSelectedRun = result.profile.runs[0]?.index ?? null;
+			viewerState.compareRun = null;
+			viewerState.panel = 'runs';
 			return;
 		}
 		viewerState.profile = result.profile;
-		viewerState.error = '';
-		viewerState.panel = 'profile';
+		viewerState.other = null;
+		viewerState.otherSelectedRun = null;
+		viewerState.panel = 'runs';
 		viewerState.selectedRun = result.profile.runs[0]?.index ?? null;
 	}
 
@@ -187,7 +218,27 @@
 		e.preventDefault();
 		dragOver = false;
 		const f = e.dataTransfer?.files[0];
-		if (f) loadFile(f);
+		if (f) loadFile(f, 'you');
+	}
+
+	function onWindowDragOver(e: DragEvent) {
+		if (!viewerState.profile || !e.dataTransfer?.types.includes('Files')) return;
+		e.preventDefault();
+		compareDrag = true;
+	}
+
+	function onWindowDrop(e: DragEvent) {
+		compareDrag = false;
+		if (!viewerState.profile) return;
+		const f = e.dataTransfer?.files[0];
+		if (!f) return;
+		e.preventDefault();
+		loadFile(f, 'them');
+	}
+
+	function clearOther() {
+		viewerState.other = null;
+		viewerState.otherSelectedRun = null;
 	}
 
 	function setPanel(id: PanelId) {
@@ -226,7 +277,7 @@
 				const prev = filteredRuns[Math.max(0, idx - 1)];
 				if (prev) viewerState.selectedRun = prev.index;
 			}
-			if (e.key === 'Enter' && e.shiftKey && viewerState.selectedRun != null) {
+			if (e.key === 'Enter' && e.shiftKey && viewerState.selectedRun != null && !viewerState.other) {
 				e.preventDefault();
 				viewerState.compareRun = viewerState.selectedRun;
 			}
@@ -299,20 +350,25 @@
 	}
 
 	const wins = $derived(profile ? profile.runs.filter((r) => r.win).length : 0);
-	const acc = $derived(
-		profile && profile.tot.hits + profile.tot.miss > 0
-			? (profile.tot.hits / (profile.tot.hits + profile.tot.miss)) * 100
-			: null
-	);
+	const otherWins = $derived(other ? other.runs.filter((r) => r.win).length : 0);
+	const acc = $derived(profile ? profileAcc(profile) : null);
+	const otherAcc = $derived(other ? profileAcc(other) : null);
 	const coinFound = $derived(profile ? profile.coins.reduce((a, c) => a + c.found.length, 0) : 0);
 	const coinTotal = $derived(profile ? profile.coins.reduce((a, c) => a + c.total, 0) : 0);
+	const otherCoinFound = $derived(other ? other.coins.reduce((a, c) => a + c.found.length, 0) : 0);
+	const otherCoinTotal = $derived(other ? other.coins.reduce((a, c) => a + c.total, 0) : 0);
 	const colCats = $derived(profile ? [...new Set(profile.collection.map((c) => c.category))].sort() : []);
 	const enemyFactions = $derived(
 		profile ? [...new Set(Object.values(profile.enemyTotals).map((e) => e.faction))].sort() : []
 	);
 </script>
 
-<svelte:window onkeydown={handleKey} />
+<svelte:window
+	onkeydown={handleKey}
+	ondragover={onWindowDragOver}
+	ondrop={onWindowDrop}
+	ondragleave={() => (compareDrag = false)}
+/>
 
 <main class="max-w-6xl mx-auto px-3 py-4 pb-16">
 	<header class="border-b border-[var(--contour)] pb-3 mb-3 flex flex-wrap justify-between gap-3">
@@ -322,12 +378,16 @@
 				Abyssus save viewer · local parse only
 			</p>
 		</div>
-		{#if profile}
+			{#if profile}
 			<div class="text-right text-xs font-mono text-[var(--muted)]">
 				<div><span class="text-[var(--phosphor)]">{profile.slot || profile.fileName}</span></div>
 				<div>{profile.engine ?? 'md'} · {profile.runs.length} runs · {profile.source}</div>
+				{#if other}
+					<div class="text-[var(--brass)] mt-1">{other.slot || other.fileName}</div>
+					<div>{other.engine ?? 'md'} · {other.runs.length} runs · {other.source}</div>
+				{/if}
 			</div>
-		{/if}
+			{/if}
 	</header>
 
 	{#if !profile}
@@ -409,15 +469,40 @@
 				<button type="button" class="btn-ghost" onclick={copyExport}>Copy JSON</button>
 				<button type="button" class="btn-ghost" onclick={downloadExport}>Export JSON</button>
 				<button type="button" class="btn-ghost" onclick={downloadCsv}>Runs CSV</button>
+				<button type="button" class="btn-ghost" onclick={() => compareInput?.click()}>
+					{other ? 'Replace compare file' : 'Compare file'}
+				</button>
+				{#if other}
+					<button type="button" class="btn-ghost" onclick={clearOther}>Clear compare</button>
+				{/if}
 				<button type="button" class="btn-ghost" onclick={resetViewer}>New file</button>
+				<input
+					bind:this={compareInput}
+					type="file"
+					accept=".sav,.md,.markdown,.json"
+					class="hidden"
+					onchange={(e) => {
+						const f = (e.currentTarget as HTMLInputElement).files?.[0];
+						if (f) loadFile(f, 'them');
+						e.currentTarget.value = '';
+					}}
+				/>
 			</div>
 		</div>
 		{#if actionMsg}
 			<p class="text-[10px] font-mono text-[var(--phosphor)] mb-2">{actionMsg}</p>
 		{/if}
+		{#if viewerState.error}
+			<p class="text-xs text-[var(--coral)] border border-[var(--coral)] p-2 mb-2">{viewerState.error}</p>
+		{/if}
+		{#if compareDrag}
+			<p class="text-[10px] font-mono text-[var(--brass)] mb-2">Drop to compare against this profile</p>
+		{/if}
 
 		<aside class="text-[10px] font-mono text-[var(--muted)] mb-3 border border-[var(--contour)] px-2 py-1">
-			<span class="text-[var(--phosphor)]">Keys:</span> 1–8 panels · j/k runs · Shift+Enter or Compare · / search · Esc close
+			<span class="text-[var(--phosphor)]">Keys:</span> 1–8 panels · j/k runs ·
+			{other ? 'compare file owns the right pane' : 'Shift+Enter or Compare'}
+			· / search · Esc close · drop another .sav to compare
 		</aside>
 
 		{#if profile.warnings.length}
@@ -427,28 +512,72 @@
 				{/each}
 			</ul>
 		{/if}
+		{#if other?.warnings.length}
+			<ul class="text-xs text-[var(--brass)] border-l-2 border-[var(--brass)] pl-2 mb-3 space-y-1">
+				{#each other.warnings as w}
+					<li>Compare: {w}</li>
+				{/each}
+			</ul>
+		{/if}
 
 		{#if viewerState.panel === 'profile'}
 			<p class="text-[10px] font-mono uppercase tracking-widest text-[var(--muted)] mb-2">
-				Profile grain · lifetime + account · open Runs for a single dive
+				Profile grain · lifetime + account
+				{#if other}<span class="text-[var(--brass)]"> · phosphor you · brass them</span>{/if}
 			</p>
 			<div class="grid md:grid-cols-2 gap-3">
 				<section class="panel">
 					<h3 class="panel-title">Account</h3>
 					<div class="grid grid-cols-2 gap-2 text-sm">
-						<div><span class="label">Souls</span><div class="val">{fmtNum(profile.souls)}</div></div>
-						<div><span class="label">Diff points</span><div class="val">{profile.diffPoints}</div></div>
-						<div><span class="label">Runs</span><div class="val">{profile.runs.length}</div><div class="text-[10px] text-[var(--muted)]">{wins} completed</div></div>
-						<div><span class="label">Fissures</span><div class="val">{coinFound}/{coinTotal}</div></div>
+						<div>
+							<span class="label">Souls</span>
+							<div class="val">{fmtNum(profile.souls)}</div>
+							{#if other}<div class="val them">{fmtNum(other.souls)}</div>{/if}
+						</div>
+						<div>
+							<span class="label">Diff points</span>
+							<div class="val">{profile.diffPoints}</div>
+							{#if other}<div class="val them">{other.diffPoints}</div>{/if}
+						</div>
+						<div>
+							<span class="label">Runs</span>
+							<div class="val">{profile.runs.length}</div>
+							<div class="text-[10px] text-[var(--muted)]">{wins} completed</div>
+							{#if other}
+								<div class="val them">{other.runs.length}</div>
+								<div class="text-[10px] text-[var(--brass)]">{otherWins} completed</div>
+							{/if}
+						</div>
+						<div>
+							<span class="label">Fissures</span>
+							<div class="val">{coinFound}/{coinTotal}</div>
+							{#if other}<div class="val them">{otherCoinFound}/{otherCoinTotal}</div>{/if}
+						</div>
 					</div>
 				</section>
 				<section class="panel">
 					<h3 class="panel-title">Lifetime combat</h3>
 					<div class="grid grid-cols-2 gap-2 text-sm">
-						<div><span class="label">Kills</span><div class="val">{fmtNum(profile.tot.kills)}</div></div>
-						<div><span class="label">Damage</span><div class="val">{fmtNum(Math.round(profile.tot.dealt))}</div></div>
-						<div><span class="label">Taken</span><div class="val text-[var(--coral)]">{fmtNum(Math.round(profile.tot.taken))}</div></div>
-						<div><span class="label">Accuracy</span><div class="val">{fmtPct(acc)}</div></div>
+						<div>
+							<span class="label">Kills</span>
+							<div class="val">{fmtNum(profile.tot.kills)}</div>
+							{#if other}<div class="val them">{fmtNum(other.tot.kills)}</div>{/if}
+						</div>
+						<div>
+							<span class="label">Damage</span>
+							<div class="val">{fmtNum(Math.round(profile.tot.dealt))}</div>
+							{#if other}<div class="val them">{fmtNum(Math.round(other.tot.dealt))}</div>{/if}
+						</div>
+						<div>
+							<span class="label">Taken</span>
+							<div class="val text-[var(--coral)]">{fmtNum(Math.round(profile.tot.taken))}</div>
+							{#if other}<div class="val them">{fmtNum(Math.round(other.tot.taken))}</div>{/if}
+						</div>
+						<div>
+							<span class="label">Accuracy</span>
+							<div class="val">{fmtPct(acc)}</div>
+							{#if other}<div class="val them">{fmtPct(otherAcc)}</div>{/if}
+						</div>
 					</div>
 				</section>
 				<section class="panel">
@@ -519,24 +648,40 @@
 					<option value="gold">Sort gold</option>
 				</select>
 				<span class="text-[var(--muted)] self-center">{filteredRuns.length} runs</span>
-				<button
-					type="button"
-					class="btn-ghost"
-					disabled={selectedRun == null}
-					onclick={() => {
-						if (viewerState.selectedRun != null) viewerState.compareRun = viewerState.selectedRun;
-					}}
-				>
-					Compare
-				</button>
-				<button
-					type="button"
-					class="btn-ghost"
-					disabled={compareRun == null}
-					onclick={() => (viewerState.compareRun = null)}
-				>
-					Clear compare
-				</button>
+				{#if other}
+					<select
+						class="ctl"
+						value={viewerState.otherSelectedRun ?? ''}
+						onchange={(e) => {
+							const v = (e.currentTarget as HTMLSelectElement).value;
+							viewerState.otherSelectedRun = v === '' ? null : Number(v);
+						}}
+					>
+						<option value="">Their run…</option>
+						{#each other.runs as r (r.index)}
+							<option value={r.index}>{r.index + 1} · {r.weapon}{#if r.ability} / {r.ability}{/if}</option>
+						{/each}
+					</select>
+				{:else}
+					<button
+						type="button"
+						class="btn-ghost"
+						disabled={selectedRun == null}
+						onclick={() => {
+							if (viewerState.selectedRun != null) viewerState.compareRun = viewerState.selectedRun;
+						}}
+					>
+						Compare
+					</button>
+					<button
+						type="button"
+						class="btn-ghost"
+						disabled={compareRun == null}
+						onclick={() => (viewerState.compareRun = null)}
+					>
+						Clear compare
+					</button>
+				{/if}
 			</div>
 			<div class="grid md:grid-cols-[minmax(220px,1fr)_minmax(280px,1.2fr)] gap-3">
 				<div
@@ -562,7 +707,18 @@
 					{:else}
 						<p class="text-[var(--muted)] text-sm">Select a run (j/k)</p>
 					{/if}
-					{#if compareRun}
+					{#if other}
+						<hr class="border-[var(--contour)] my-3" />
+						<h4 class="text-xs font-mono uppercase text-[var(--brass)] mb-2">
+							{other.slot || other.fileName}
+							{#if otherRun} · run {otherRun.index + 1}{/if}
+						</h4>
+						{#if otherRun}
+							<RunDetail run={otherRun} profile={other} />
+						{:else}
+							<p class="text-[var(--muted)] text-sm">Pick one of their runs</p>
+						{/if}
+					{:else if compareRun}
 						{#if compareRun.index === selectedRun?.index}
 							<p class="text-xs font-mono text-[var(--brass)] mt-3">
 								Pinned run {compareRun.index + 1} — j/k or click another run to compare
@@ -676,14 +832,45 @@
 							<li class="flex justify-between"><span>{s.label}</span><span>{s.pct.toFixed(1)}%</span></li>
 						{/each}
 					</ul>
+					{#if other}
+						<p class="text-[10px] font-mono uppercase text-[var(--brass)] mt-3 mb-1">{other.slot || other.fileName}</p>
+						<StackBar slices={otherMix} width={320} />
+						<ul class="mt-2 text-xs font-mono space-y-0.5">
+							{#each otherMix as s}
+								<li class="flex justify-between text-[var(--brass)]"><span>{s.label}</span><span>{s.pct.toFixed(1)}%</span></li>
+							{/each}
+						</ul>
+					{/if}
 				</section>
 				<section class="panel">
 					<h3 class="panel-title">Weapon table</h3>
 					<table class="w-full text-xs">
-						<thead><tr class="text-[var(--muted)]"><th class="text-left p-1">Weapon</th><th class="p-1">Runs</th><th class="p-1">WR</th><th class="p-1">Avg dmg</th></tr></thead>
+						<thead>
+							<tr class="text-[var(--muted)]">
+								<th class="text-left p-1">Weapon</th>
+								<th class="p-1">Runs</th>
+								<th class="p-1">WR</th>
+								<th class="p-1">Avg dmg</th>
+								{#if other}
+									<th class="p-1 text-[var(--brass)]">Them</th>
+									<th class="p-1 text-[var(--brass)]">WR</th>
+									<th class="p-1 text-[var(--brass)]">Avg</th>
+								{/if}
+							</tr>
+						</thead>
 						<tbody>
-							{#each profile.weaponStats as w}
-								<tr class="border-t border-[var(--contour)]"><td class="p-1">{w.weapon}</td><td class="p-1 text-center font-mono">{w.runs}</td><td class="p-1 text-center font-mono">{fmtPct(w.winRate, 0)}</td><td class="p-1 text-right font-mono">{fmtNum(Math.round(w.avgDealt))}</td></tr>
+							{#each pairedWeapons as row (row.key)}
+								<tr class="border-t border-[var(--contour)]">
+									<td class="p-1">{row.key}</td>
+									<td class="p-1 text-center font-mono">{row.you?.runs ?? '—'}</td>
+									<td class="p-1 text-center font-mono">{row.you ? fmtPct(row.you.winRate, 0) : '—'}</td>
+									<td class="p-1 text-right font-mono">{row.you ? fmtNum(Math.round(row.you.avgDealt)) : '—'}</td>
+									{#if other}
+										<td class="p-1 text-center font-mono text-[var(--brass)]">{row.them?.runs ?? '—'}</td>
+										<td class="p-1 text-center font-mono text-[var(--brass)]">{row.them ? fmtPct(row.them.winRate, 0) : '—'}</td>
+										<td class="p-1 text-right font-mono text-[var(--brass)]">{row.them ? fmtNum(Math.round(row.them.avgDealt)) : '—'}</td>
+									{/if}
+								</tr>
 							{/each}
 						</tbody>
 					</table>
@@ -691,20 +878,62 @@
 				<section class="panel">
 					<h3 class="panel-title">Ability table</h3>
 					<table class="w-full text-xs">
-						<thead><tr class="text-[var(--muted)]"><th class="text-left p-1">Ability</th><th class="p-1">Runs</th><th class="p-1">WR</th><th class="p-1">Avg dmg</th></tr></thead>
+						<thead>
+							<tr class="text-[var(--muted)]">
+								<th class="text-left p-1">Ability</th>
+								<th class="p-1">Runs</th>
+								<th class="p-1">WR</th>
+								<th class="p-1">Avg dmg</th>
+								{#if other}
+									<th class="p-1 text-[var(--brass)]">Them</th>
+									<th class="p-1 text-[var(--brass)]">WR</th>
+									<th class="p-1 text-[var(--brass)]">Avg</th>
+								{/if}
+							</tr>
+						</thead>
 						<tbody>
-							{#each profile.abilityStats as a}
-								<tr class="border-t border-[var(--contour)]"><td class="p-1">{a.ability}</td><td class="p-1 text-center font-mono">{a.runs}</td><td class="p-1 text-center font-mono">{fmtPct(a.winRate, 0)}</td><td class="p-1 text-right font-mono">{fmtNum(Math.round(a.avgDealt))}</td></tr>
+							{#each pairedAbilities as row (row.key)}
+								<tr class="border-t border-[var(--contour)]">
+									<td class="p-1">{row.key}</td>
+									<td class="p-1 text-center font-mono">{row.you?.runs ?? '—'}</td>
+									<td class="p-1 text-center font-mono">{row.you ? fmtPct(row.you.winRate, 0) : '—'}</td>
+									<td class="p-1 text-right font-mono">{row.you ? fmtNum(Math.round(row.you.avgDealt)) : '—'}</td>
+									{#if other}
+										<td class="p-1 text-center font-mono text-[var(--brass)]">{row.them?.runs ?? '—'}</td>
+										<td class="p-1 text-center font-mono text-[var(--brass)]">{row.them ? fmtPct(row.them.winRate, 0) : '—'}</td>
+										<td class="p-1 text-right font-mono text-[var(--brass)]">{row.them ? fmtNum(Math.round(row.them.avgDealt)) : '—'}</td>
+									{/if}
+								</tr>
 							{/each}
 						</tbody>
 					</table>
 					<h3 class="panel-title mt-3">Blessing frequency</h3>
-					{#each profile.blessingFreq as b}
-						<div class="flex justify-between text-xs py-0.5 font-mono"><span>{b.god}</span><span>{b.runs} runs · {fmtNum(b.damage)} dmg</span></div>
+					{#each pairedBlessings as row (row.key)}
+						<div class="flex justify-between text-xs py-0.5 font-mono gap-2">
+							<span>{row.key}</span>
+							<span>
+								{row.you ? `${row.you.runs} runs · ${fmtNum(row.you.damage)} dmg` : '—'}
+								{#if other}
+									<span class="text-[var(--brass)]">
+										· {row.them ? `${row.them.runs} / ${fmtNum(row.them.damage)}` : '—'}
+									</span>
+								{/if}
+							</span>
+						</div>
 					{/each}
 					<h3 class="panel-title mt-3">Loop win rate</h3>
-					{#each biomeWr as b}
-						<div class="flex justify-between text-xs py-0.5 font-mono"><span>{b.biome}</span><span>{fmtPct(b.rate, 0)} ({b.wins}/{b.runs})</span></div>
+					{#each pairedLoops as row (row.key)}
+						<div class="flex justify-between text-xs py-0.5 font-mono gap-2">
+							<span>{row.key}</span>
+							<span>
+								{row.you ? `${fmtPct(row.you.rate, 0)} (${row.you.wins}/${row.you.runs})` : '—'}
+								{#if other}
+									<span class="text-[var(--brass)]">
+										· {row.them ? `${fmtPct(row.them.rate, 0)} (${row.them.wins}/${row.them.runs})` : '—'}
+									</span>
+								{/if}
+							</span>
+						</div>
 					{/each}
 				</section>
 				<section class="panel md:col-span-2">
@@ -872,6 +1101,10 @@
 		font-family: ui-monospace, monospace;
 		font-size: 1.25rem;
 		color: var(--phosphor);
+	}
+	.val.them {
+		font-size: 1rem;
+		color: var(--brass);
 	}
 	.tag {
 		font-family: ui-monospace, monospace;

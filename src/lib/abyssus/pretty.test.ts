@@ -3,7 +3,7 @@ import { challengeState } from './catalogs/challenges';
 import { classifyEnemy, prettyEnemy } from './catalogs/enemies';
 import { COIN_CATALOG } from './catalogs/coins';
 import { lookupAbility, lookupAspect, lookupWeapon, matchingSynergies } from './catalogs/knowledge';
-import { classifyMutator, damageSource, pretty, prettyArea } from './pretty';
+import { classifyMutator, damageSource, displayPlayerName, pretty, prettyArea } from './pretty';
 
 describe('pretty', () => {
 	it('names weapons', () => {
@@ -14,6 +14,11 @@ describe('pretty', () => {
 	it('maps areas', () => {
 		expect(prettyArea('Area.Boatyard')).toBe('Abandoned Temple');
 		expect(prettyArea('Area.Void')).toBe('Royal Abyss');
+	});
+
+	it('unwraps Steam nicks', () => {
+		expect(displayPlayerName('SXE$GhostRider$2002')).toBe('GhostRider');
+		expect(displayPlayerName('не какал 8 лет')).toBe('не какал 8 лет');
 	});
 
 	it('splits god damage', () => {

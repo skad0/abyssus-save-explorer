@@ -44,6 +44,11 @@ export function pretty(path: unknown): string | null {
 	return NAME_FIX[s] ?? (s || null);
 }
 
+export function displayPlayerName(name: string): string {
+	const m = /^[^$\s]*\$([^$]+)\$/.exec(name);
+	return m?.[1] || name;
+}
+
 export function categoryOf(path: string): string {
 	if (!path) return 'Other';
 	if (path.includes('/Weapons/')) return 'Weapon';

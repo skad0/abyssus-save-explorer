@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { RunRecord } from '$lib/abyssus/types';
-	import { fmtNum, fmtPct } from '$lib/abyssus/pretty';
+	import { displayPlayerName, fmtNum, fmtPct } from '$lib/abyssus/pretty';
 	import { runResultLabel } from '$lib/abyssus/run-outcome';
 
 	interface Props {
@@ -33,6 +33,9 @@
 			</div>
 			<div class="text-[11px] text-[var(--muted)] font-mono truncate">
 				L{run.loop} · {run.killedBy ?? 'survived'} · {fmtPct(run.acc, 0)} acc
+				{#if run.coop.length}
+					· {run.coop.map((c) => displayPlayerName(c.player)).join(', ')}
+				{/if}
 			</div>
 		</div>
 		<div class="text-right font-mono text-xs tabular-nums shrink-0">
