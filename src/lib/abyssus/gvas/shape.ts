@@ -78,20 +78,40 @@ function parseMutators(list: unknown): MutatorEntry[] {
 		.filter((x): x is MutatorEntry => x != null);
 }
 
-function coopByRunIndex(otherStats: unknown): Record<number, Loose> {
-	const out: Record<number, Loose> = {};
-	for (const [, v] of asArr(otherStats) as [unknown, unknown][]) {
-		const partner = asObj(v);
-		if (!partner) continue;
-		asArr(partner.RunStats).forEach((run, i) => {
-			const row = asObj(run);
-			if (row && !out[i]) out[i] = row;
-		});
+function runIndexKey(v: unknown): number | null {
+	if (typeof v === 'number' && Number.isInteger(v) && v >= 0) return v;
+	if (typeof v === 'string' && /^\d+$/.test(v)) return Number(v);
+	return null;
+}
+
+function coopByRunIndex(otherStats: unknown): Record<number, Loose[]> {
+	const out: Record<number, Loose[]> = {};
+	for (const entry of asArr(otherStats)) {
+		const pair = asArr(entry);
+		const idx = runIndexKey(pair[0]);
+		if (idx == null) continue;
+		const blob = asObj(pair[1]);
+		if (!blob) continue;
+		out[idx] = asArr(blob.RunStats)
+			.map((r) => asObj(r))
+			.filter((row): row is Loose => row != null);
 	}
 	return out;
 }
 
-function parseRuns(rawRuns: unknown, coopMap: Record<number, Loose>): RunRecord[] {
+function shapePartner(row: Loose): RunRecord['coop'][number] {
+	return {
+		player: asStr(row.PlayerName).replace(/\/$/, '') || 'Partner',
+		dealt: asNum(row.DamageDealt),
+		taken: asNum(row.DamageTaken),
+		kills: asNum(row.EnemiesKilled),
+		deaths: asNum(row.Deaths),
+		weapon: pretty(row.WeaponUsed),
+		ability: pretty(row.AbilityPrimaryAssetAtStartOfRun)
+	};
+}
+
+function parseRuns(rawRuns: unknown, coopMap: Record<number, Loose[]>): RunRecord[] {
 	return asArr(rawRuns).map((r, i) => {
 		const row = asObj(r) ?? {};
 		const hits = asNum(row.bulletsHit);
@@ -148,16 +168,7 @@ function parseRuns(rawRuns: unknown, coopMap: Record<number, Loose>): RunRecord[
 					return { name, count: asNum(er.KillCount), faction, role };
 				})
 				.filter((x) => x != null),
-			coop: coop
-				? {
-						player: asStr(coop.PlayerName) || 'Partner',
-						dealt: asNum(coop.DamageDealt),
-						taken: asNum(coop.DamageTaken),
-						kills: asNum(coop.EnemiesKilled),
-						deaths: asNum(coop.Deaths),
-						weapon: pretty(coop.WeaponUsed)
-					}
-				: null
+			coop: (coop ?? []).map(shapePartner)
 		};
 	});
 }

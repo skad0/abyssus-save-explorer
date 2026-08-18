@@ -260,3 +260,47 @@ export function biomeWinRates(profile: AbyssusProfile): { biome: string; wins: n
 		rate: s.runs ? (s.wins / s.runs) * 100 : 0
 	}));
 }
+
+export interface PartyRow {
+	name: string;
+	you: boolean;
+	weapon: string;
+	ability: string | null;
+	dealt: number;
+	taken: number;
+	kills: number;
+	deaths: number;
+	share: number;
+}
+
+export function partyCompareRows(run: RunRecord): PartyRow[] {
+	const mates = Array.isArray(run.coop) ? run.coop : [];
+	if (!mates.length) return [];
+	const people = [
+		{
+			name: run.player || 'You',
+			you: true,
+			weapon: run.weapon,
+			ability: run.ability,
+			dealt: run.dealt,
+			taken: run.taken,
+			kills: run.kills,
+			deaths: run.deaths
+		},
+		...mates.map((p) => ({
+			name: p.player,
+			you: false,
+			weapon: p.weapon ?? '—',
+			ability: p.ability,
+			dealt: p.dealt,
+			taken: p.taken,
+			kills: p.kills,
+			deaths: p.deaths
+		}))
+	];
+	const total = people.reduce((s, p) => s + p.dealt, 0);
+	return people.map((p) => ({
+		...p,
+		share: total > 0 ? (p.dealt / total) * 100 : 0
+	}));
+}

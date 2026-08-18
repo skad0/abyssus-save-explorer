@@ -85,14 +85,17 @@ export interface RunRecord {
 	nodes: string[];
 	challenges: string[];
 	enemies: { name: string; count: number; faction: string; role: string }[];
-	coop: {
-		player: string;
-		dealt: number;
-		taken: number;
-		kills: number;
-		deaths: number;
-		weapon: string | null;
-	} | null;
+	coop: CoopPartner[];
+}
+
+export interface CoopPartner {
+	player: string;
+	dealt: number;
+	taken: number;
+	kills: number;
+	deaths: number;
+	weapon: string | null;
+	ability: string | null;
 }
 
 export interface LoadoutPreset {

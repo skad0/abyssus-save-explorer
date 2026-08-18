@@ -39,6 +39,10 @@ describe('live Profile1.sav', () => {
 		const kill = p.challenges.find((c) => c.key === 'KillChallenge');
 		expect(kill?.state).not.toBe('untouched');
 		expect(kill?.target).toBeNull();
+		expect(p.runs[1]?.coop.length).toBe(2);
+		expect(p.runs[0]?.coop.length).toBe(1);
+		expect(new Set(p.runs[1]?.coop.map((c) => c.player)).size).toBe(2);
+		expect(p.runs[1]?.coop.some((c) => c.player.includes('GhostRider'))).toBe(true);
 	});
 });
 

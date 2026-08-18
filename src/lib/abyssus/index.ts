@@ -1,7 +1,13 @@
 import { shapeGvas } from './gvas/shape';
 import { parseGVAS } from './gvas/reader';
 import { shapeMarkdown } from './markdown/parse';
-import type { AbyssusProfile, ParseResult } from './types';
+import type { AbyssusProfile, CoopPartner, ParseResult } from './types';
+
+function asCoopList(v: unknown): CoopPartner[] {
+	if (Array.isArray(v)) return v as CoopPartner[];
+	if (v && typeof v === 'object') return [v as CoopPartner];
+	return [];
+}
 
 export function detectFileKind(fileName: string, textPreview?: string): 'gvas' | 'markdown' | 'json' | 'unknown' {
 	const lower = fileName.toLowerCase();
@@ -39,7 +45,18 @@ export function parseFileText(fileName: string, text: string): ParseResult {
 		if (kind === 'json') {
 			const data = JSON.parse(text) as AbyssusProfile;
 			if (data.runs && Array.isArray(data.runs)) {
-				return { ok: true, profile: { ...data, source: 'json', fileName } };
+				return {
+					ok: true,
+					profile: {
+						...data,
+						source: 'json',
+						fileName,
+						runs: data.runs.map((r) => ({
+							...r,
+							coop: asCoopList(r.coop)
+						}))
+					}
+				};
 			}
 			return { ok: false, profile: null, error: 'JSON is not a shaped Abyssus profile.' };
 		}

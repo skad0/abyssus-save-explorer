@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { AbyssusProfile, RunRecord } from '$lib/abyssus/types';
 	import { fmtDur, fmtNum, fmtPct, mutatorLabel } from '$lib/abyssus/pretty';
-	import { damageMixPercent, runInsight } from '$lib/abyssus/stats';
+	import { damageMixPercent, partyCompareRows, runInsight } from '$lib/abyssus/stats';
 	import StackBar from './StackBar.svelte';
 
 	interface Props {
@@ -28,6 +28,7 @@
 	});
 
 	const insight = $derived(runInsight(run, profile));
+	const party = $derived(partyCompareRows(run));
 </script>
 
 <div class="space-y-3 text-sm">
@@ -53,6 +54,43 @@
 		<div class="kv"><span>Primary mod</span><span>{run.modPrimary ?? '—'}</span></div>
 		<div class="kv"><span>Secondary mod</span><span>{run.modSecondary ?? '—'}</span></div>
 	</section>
+
+	{#if party.length}
+		<section>
+			<h4 class="sub-h">Party this dive</h4>
+			<table class="party">
+				<thead>
+					<tr>
+						<th>Player</th>
+						<th>Loadout</th>
+						<th class="num">Dealt</th>
+						<th class="num">Share</th>
+						<th class="num">Kills</th>
+						<th class="num">Taken</th>
+						<th class="num">Deaths</th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each party as p, i (p.you ? 'you' : `p-${i}`)}
+						<tr class={p.you ? 'you' : ''}>
+							<td>{p.you ? `${p.name} (you)` : p.name}</td>
+							<td>{p.weapon}{#if p.ability}<span class="muted"> / {p.ability}</span>{/if}</td>
+							<td class="num">{fmtNum(Math.round(p.dealt))}</td>
+							<td class="num">{fmtPct(p.share, 0)}</td>
+							<td class="num">{fmtNum(p.kills)}</td>
+							<td class="num">{fmtNum(Math.round(p.taken))}</td>
+							<td class="num">{fmtNum(p.deaths)}</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+			<div class="share" aria-hidden="true">
+				{#each party as p, i (p.you ? 'you-bar' : `p-bar-${i}`)}
+					<i style="width:{p.share}%" class={p.you ? 'you' : ''}></i>
+				{/each}
+			</div>
+		</section>
+	{/if}
 
 	<section>
 		<h4 class="sub-h">Combo efficiency</h4>
@@ -144,13 +182,6 @@
 			</div>
 		</section>
 	{/if}
-
-	{#if run.coop}
-		<section>
-			<h4 class="sub-h">Co-op partner</h4>
-			<div class="kv"><span>{run.coop.player}</span><span>{fmtNum(run.coop.dealt)} dealt</span></div>
-		</section>
-	{/if}
 </div>
 
 <style>
@@ -204,5 +235,47 @@
 		padding-left: 1.1em;
 		font-size: 12px;
 		color: var(--cream);
+	}
+	.party {
+		width: 100%;
+		font-size: 11px;
+		font-family: ui-monospace, monospace;
+	}
+	.party th {
+		text-align: left;
+		color: var(--muted);
+		font-weight: 500;
+		padding: 2px 4px;
+		text-transform: uppercase;
+		font-size: 10px;
+	}
+	.party td {
+		padding: 3px 4px;
+		border-top: 1px solid var(--contour);
+	}
+	.party .num {
+		text-align: right;
+		font-variant-numeric: tabular-nums;
+	}
+	.party tr.you td {
+		color: var(--phosphor);
+	}
+	.muted {
+		color: var(--muted);
+	}
+	.share {
+		display: flex;
+		height: 6px;
+		margin-top: 6px;
+		background: rgba(28, 72, 89, 0.65);
+		overflow: hidden;
+	}
+	.share i {
+		display: block;
+		height: 100%;
+		background: var(--brass);
+	}
+	.share i.you {
+		background: var(--phosphor);
 	}
 </style>

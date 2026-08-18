@@ -263,7 +263,7 @@ export function shapeMarkdown(text: string, fileName: string): AbyssusProfile {
 				nodes: [],
 				challenges: [],
 				enemies: [],
-				coop: null
+				coop: []
 			};
 		});
 	}
