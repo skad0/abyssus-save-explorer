@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { RunRecord } from '$lib/abyssus/types';
 	import { fmtNum, fmtPct } from '$lib/abyssus/pretty';
+	import { runResultLabel } from '$lib/abyssus/run-outcome';
 
 	interface Props {
 		run: RunRecord;
@@ -9,6 +10,8 @@
 	}
 
 	let { run, selected = false, onselect }: Props = $props();
+
+	const result = $derived(runResultLabel(run));
 </script>
 
 <button
@@ -22,8 +25,8 @@
 		<span class="font-serif text-lg text-[var(--muted)] tabular-nums">{run.index + 1}</span>
 		<div class="min-w-0">
 			<div class="truncate">
-				<span class={run.win ? 'text-[var(--phosphor)]' : 'text-[var(--coral)]'}>
-					{run.win ? 'WIN' : 'LOSS'}
+				<span class={result === 'LOSS' ? 'text-[var(--coral)]' : 'text-[var(--phosphor)]'}>
+					{result}
 				</span>
 				· {run.weapon}
 				{#if run.ability}<span class="text-[var(--muted)]"> / {run.ability}</span>{/if}

@@ -6,6 +6,7 @@
 	import { fmtNum, fmtPct } from '$lib/abyssus/pretty';
 	import { biomeWinRates, damageMixPercent } from '$lib/abyssus/stats';
 	import type { ComboStats, RunRecord } from '$lib/abyssus/types';
+	import { isTypingTarget } from '$lib/abyssus/viewer-keys';
 	import {
 		exportProfileJson,
 		exportRunsCsv,
@@ -29,6 +30,7 @@
 	let dragOver = $state(false);
 	let comboKind = $state<ComboStats['kind']>('weapon-ability');
 	let listScrollTop = $state(0);
+	let actionMsg = $state('');
 	const ROW_H = 56;
 	const VIEW_H = 420;
 
@@ -194,11 +196,10 @@
 
 	function handleKey(e: KeyboardEvent) {
 		if (!profile) return;
-		const target = e.target as HTMLElement;
-		if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+		if (isTypingTarget(e.target)) {
 			if (e.key === 'Escape') {
 				viewerState.searchOpen = false;
-				(target as HTMLInputElement).blur();
+				(e.target as HTMLElement).blur();
 			}
 			return;
 		}
@@ -225,17 +226,26 @@
 				const prev = filteredRuns[Math.max(0, idx - 1)];
 				if (prev) viewerState.selectedRun = prev.index;
 			}
-			if (e.key === 'Enter' && viewerState.selectedRun != null && e.shiftKey) {
+			if (e.key === 'Enter' && e.shiftKey && viewerState.selectedRun != null) {
+				e.preventDefault();
 				viewerState.compareRun = viewerState.selectedRun;
 			}
 		}
+		if (e.ctrlKey || e.metaKey || e.altKey) return;
 		const num = Number(e.key);
-		if (num >= 1 && num <= panels.length) setPanel(panels[num - 1].id);
+		if (num >= 1 && num <= panels.length) {
+			e.preventDefault();
+			setPanel(panels[num - 1].id);
+		}
 	}
 
-	function copyExport() {
-		const json = exportProfileJson();
-		navigator.clipboard?.writeText(json);
+	async function copyExport() {
+		try {
+			await navigator.clipboard.writeText(exportProfileJson());
+			actionMsg = 'JSON copied';
+		} catch {
+			actionMsg = 'Clipboard blocked — use Export JSON';
+		}
 	}
 
 	function downloadExport() {
@@ -386,22 +396,28 @@
 			</nav>
 			<div class="ml-auto flex gap-2">
 				{#if viewerState.searchOpen}
+					<!-- svelte-ignore a11y_autofocus -->
 					<input
 						type="search"
 						placeholder="Filter…"
 						class="font-mono text-xs bg-[rgba(8,24,31,0.8)] border border-[var(--contour)] px-2 py-1 min-w-40"
 						bind:value={viewerState.filters.search}
+						autofocus
 					/>
 				{/if}
+				<button type="button" class="btn-ghost" onclick={() => (viewerState.searchOpen = !viewerState.searchOpen)}>Search</button>
 				<button type="button" class="btn-ghost" onclick={copyExport}>Copy JSON</button>
 				<button type="button" class="btn-ghost" onclick={downloadExport}>Export JSON</button>
 				<button type="button" class="btn-ghost" onclick={downloadCsv}>Runs CSV</button>
 				<button type="button" class="btn-ghost" onclick={resetViewer}>New file</button>
 			</div>
 		</div>
+		{#if actionMsg}
+			<p class="text-[10px] font-mono text-[var(--phosphor)] mb-2">{actionMsg}</p>
+		{/if}
 
 		<aside class="text-[10px] font-mono text-[var(--muted)] mb-3 border border-[var(--contour)] px-2 py-1">
-			<span class="text-[var(--phosphor)]">Keys:</span> 1–8 panels · j/k runs · Shift+Enter compare · / search · Esc close
+			<span class="text-[var(--phosphor)]">Keys:</span> 1–8 panels · j/k runs · Shift+Enter or Compare · / search · Esc close
 		</aside>
 
 		{#if profile.warnings.length}
@@ -503,6 +519,24 @@
 					<option value="gold">Sort gold</option>
 				</select>
 				<span class="text-[var(--muted)] self-center">{filteredRuns.length} runs</span>
+				<button
+					type="button"
+					class="btn-ghost"
+					disabled={selectedRun == null}
+					onclick={() => {
+						if (viewerState.selectedRun != null) viewerState.compareRun = viewerState.selectedRun;
+					}}
+				>
+					Compare
+				</button>
+				<button
+					type="button"
+					class="btn-ghost"
+					disabled={compareRun == null}
+					onclick={() => (viewerState.compareRun = null)}
+				>
+					Clear compare
+				</button>
 			</div>
 			<div class="grid md:grid-cols-[minmax(220px,1fr)_minmax(280px,1.2fr)] gap-3">
 				<div
@@ -528,10 +562,16 @@
 					{:else}
 						<p class="text-[var(--muted)] text-sm">Select a run (j/k)</p>
 					{/if}
-					{#if compareRun && compareRun.index !== selectedRun?.index}
-						<hr class="border-[var(--contour)] my-3" />
-						<h4 class="text-xs font-mono uppercase text-[var(--brass)] mb-2">Compare run {compareRun.index + 1}</h4>
-						<RunDetail run={compareRun} {profile} />
+					{#if compareRun}
+						{#if compareRun.index === selectedRun?.index}
+							<p class="text-xs font-mono text-[var(--brass)] mt-3">
+								Pinned run {compareRun.index + 1} — j/k or click another run to compare
+							</p>
+						{:else}
+							<hr class="border-[var(--contour)] my-3" />
+							<h4 class="text-xs font-mono uppercase text-[var(--brass)] mb-2">Compare run {compareRun.index + 1}</h4>
+							<RunDetail run={compareRun} {profile} />
+						{/if}
 					{/if}
 				</div>
 			</div>
@@ -846,6 +886,10 @@
 		border: 1px solid var(--contour);
 		color: var(--phosphor);
 		padding: 4px 8px;
+	}
+	.btn-ghost:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
 	}
 	.ctl {
 		background: rgba(8, 24, 31, 0.75);

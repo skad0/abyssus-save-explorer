@@ -23,6 +23,7 @@ import type {
 import { emptyProfile } from '../types';
 import type { GvasParsed } from './reader';
 import { computeCrossStats } from '../stats';
+import { isRunWin } from '../run-outcome';
 
 type Loose = Record<string, unknown>;
 
@@ -98,9 +99,10 @@ function parseRuns(rawRuns: unknown, coopMap: Record<number, Loose>): RunRecord[
 		const weak = asNum(row.weakspotsHit);
 		const nested = asObj(row.RunStats) ?? {};
 		const coop = coopMap[i];
+		const killedBy = pretty(row.EnemyKilledBy);
 		return {
 			index: i,
-			win: Boolean(row.RunSuccesful),
+			win: isRunWin(row.RunSuccesful, killedBy),
 			loop: asNum(row.LoopReached),
 			infinite: Boolean(row.bInfiniteMode),
 			player: asStr(row.PlayerName),
@@ -109,7 +111,7 @@ function parseRuns(rawRuns: unknown, coopMap: Record<number, Loose>): RunRecord[
 			modPrimary: pretty(row.PrimaryWeaponModAtStartOfRun),
 			modSecondary: pretty(row.SecondaryWeaponModAtStartOfRun),
 			ability: pretty(row.AbilityPrimaryAssetAtStartOfRun),
-			killedBy: pretty(row.EnemyKilledBy),
+			killedBy,
 			dealt: asNum(row.DamageDealt),
 			taken: asNum(row.DamageTaken),
 			kills: asNum(row.EnemiesKilled),

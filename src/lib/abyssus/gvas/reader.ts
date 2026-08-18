@@ -283,10 +283,8 @@ function readProps(r: Reader, end: number | null): GvasProps {
 		let inner: string | null = null;
 		let kt: string | null = null;
 		let vt: string | null = null;
-		let boolVal: boolean | null = null;
 
-		if (type === 'BoolProperty') boolVal = r.u8v() !== 0;
-		else if (type === 'ByteProperty' || type === 'EnumProperty') r.typeName();
+		if (type === 'ByteProperty' || type === 'EnumProperty') r.typeName();
 		else if (type === 'ArrayProperty' || type === 'SetProperty') {
 			inner = r.typeName();
 			if (inner === 'StructProperty') {
@@ -308,8 +306,12 @@ function readProps(r: Reader, end: number | null): GvasProps {
 
 		r.i32();
 		size = r.i32();
-		if (type === 'BoolProperty') size = 0;
-		else if (r.u8v() === 1) r.guid();
+		let boolVal: boolean | null = null;
+		if (type === 'BoolProperty') {
+			// Tag body is two int32s then the value byte (Abyssus writes 0x10 for true).
+			boolVal = r.u8v() !== 0;
+			size = 0;
+		} else if (r.u8v() === 1) r.guid();
 
 		const vend = r.p + size;
 		try {
@@ -359,4 +361,9 @@ export function parseGVAS(buf: ArrayBuffer): GvasParsed {
 	if (!(peek > 0 && peek < 200)) r.p = mark + 1;
 	const props = readProps(r, null);
 	return { engine: `${maj}.${min}.${pat}`, saveClass, props };
+}
+
+/** Property-stream only (no GVAS header). Used by tests for BoolProperty tag layout. */
+export function parseGvasProperties(buf: ArrayBuffer): GvasProps {
+	return readProps(new Reader(buf), null);
 }

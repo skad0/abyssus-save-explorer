@@ -121,8 +121,7 @@ function readProps(r,end){
     }
 
     let inner=null,kt=null,vt=null,boolVal=null;
-    if(type==="BoolProperty"){ boolVal=r.u8v()!==0; }
-    else if(type==="ByteProperty"||type==="EnumProperty"){ r.typeName(); }
+    if(type==="ByteProperty"||type==="EnumProperty"){ r.typeName(); }
     else if(type==="ArrayProperty"||type==="SetProperty"){
       inner=r.typeName();
       if(inner==="StructProperty"){ r.typeName(); r.typeName(); }
@@ -133,7 +132,7 @@ function readProps(r,end){
     }
 
     r.i32(); size=r.i32();
-    if(type==="BoolProperty") size=0;
+    if(type==="BoolProperty"){ boolVal=r.u8v()!==0; size=0; }
     else if(r.u8v()===1) r.guid();
 
     const vend=r.p+size;
