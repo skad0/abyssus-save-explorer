@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { parseFileBuffer } from '$lib/abyssus';
+	import FeatureGallery from '$lib/abyssus/components/FeatureGallery.svelte';
 	import RunDetail from '$lib/abyssus/components/RunDetail.svelte';
 	import RunRow from '$lib/abyssus/components/RunRow.svelte';
 	import StackBar from '$lib/abyssus/components/StackBar.svelte';
@@ -437,6 +438,7 @@
 				</div>
 			{/if}
 		</section>
+		<FeatureGallery />
 	{:else}
 		<div class="flex flex-wrap gap-2 items-center mb-3">
 			<nav class="flex flex-wrap gap-1" aria-label="Panels">

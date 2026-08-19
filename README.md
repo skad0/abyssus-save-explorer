@@ -2,12 +2,36 @@
 
 Local viewer for Abyssus `Profile1.sav` (Unreal GVAS) and the thin markdown save report. The file never leaves the browser.
 
+Live: [abyssus.kriant.online](https://abyssus.kriant.online)
+
 ```sh
 npm install
 npm run dev
 ```
 
 Drop `%LOCALAPPDATA%\Abyssus\Saved\SaveGames\Profile1.sav`. Close the game first. Do not use `GameSettings.sav` or `SAVE_GAME_SESSION_SLOT.sav`.
+
+Contributions welcome — issues and PRs: [github.com/skad0/abyssus-save-explorer](https://github.com/skad0/abyssus-save-explorer)
+
+## Features
+
+Drop a second save (or a friend’s) to compare. Phosphor is you, brass is them.
+
+**You vs them** — profile totals stack side by side.
+
+![Profile compare](public/steam/03-profile-compare.png)
+
+**Cross-stats** — weapon / ability tables grow Them columns; damage mix sits next to theirs.
+
+![Cross-stats compare](public/steam/04-stats-compare.png)
+
+**Party this dive** — co-op partners, damage share, loadout. Pin one of their runs next to yours.
+
+![Runs and party](public/steam/02-runs-compare.png)
+
+**Fissures** — hidden coins found vs missing, by biome.
+
+![Fissures](public/steam/05-fissures.png)
 
 v1 of this tool lives at `legacy-v1.html` / `legacy/index.html`.
 
